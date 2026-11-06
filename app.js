@@ -832,14 +832,14 @@ function reportsView() {
 
 // Ready to post in a WhatsApp group. The user picks the group and sends it in WhatsApp.
 function messageView() {
-  const entry = CrewLib.latestActivity(state.data.entries, state.user.email, isAdmin());
+  const entry = CrewLib.latestActivity(state.data.entries, state.user.email);
   if (!entry) {
-    return [el('h2', {}, 'Latest Activity'), el('p', { class: 'count' }, 'No Footplating, Monitoring, Piloting or Ambush Check entries yet.')];
+    return [el('h2', {}, 'Latest Activity'), el('p', { class: 'count' }, 'You have no Footplating, Monitoring, Piloting or Ambush Check entries yet.')];
   }
   const text = CrewLib.activityMessage(entry);
   return [
     el('h2', {}, 'Latest Activity'),
-    el('p', { class: 'count' }, `Entry date ${CrewLib.displayDate(entry.date)}${isAdmin() ? ` · ${entry.cliName}` : ''}`),
+    el('p', { class: 'count' }, `Entry date ${CrewLib.displayDate(entry.date)}`),
     el('pre', { class: 'activity-message' }, text),
     el('div', { class: 'toolbar' },
       el('button', {

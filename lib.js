@@ -309,13 +309,13 @@ function assemble(raw, now = new Date()) {
 // The subjects worth reporting to the group. Counselling is left out, and "FOOTPLATING & MONITORING" counts.
 const ACTIVITY_SUBJECT = /FOOTPLATING|MONITORING|PILOTING|AMBUSH/i;
 
-// Newest first by entry date, then by position in the sheet. A CLI sees their own, an admin sees everyone's.
+// The signed-in user's own newest entry, admins included: by entry date, then by position in the sheet.
 // Rows with no train number are skipped: there would be nothing to post.
-function latestActivity(entries, email, isAdmin) {
+function latestActivity(entries, email) {
   const wanted = String(email ?? '').trim().toLowerCase();
   return entries
     .filter((e) => ACTIVITY_SUBJECT.test(e.sub) && String(e.trainNo ?? '').trim()
-      && (isAdmin || e.userMail.trim().toLowerCase() === wanted))
+      && e.userMail.trim().toLowerCase() === wanted)
     .sort((a, b) => b.sortKey - a.sortKey)[0] ?? null;
 }
 
