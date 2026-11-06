@@ -217,8 +217,8 @@ function handleSessionError(error) {
 }
 
 function cliNames() {
-  // CLI(R), TCC-* and TLC-* aren't working CLIs.
-  const names = state.data.crew.map((c) => c.cliName).filter((n) => n && !/^(CLI\(R\)|TCC-|TLC-)/i.test(n.trim()));
+  // CLI(R), TCC-*, TLC-* and STATIONARY aren't working CLIs.
+  const names = state.data.crew.map((c) => c.cliName).filter((n) => n && !/^(CLI\(R\)|TCC-|TLC-|STATIONARY$)/i.test(n.trim()));
   return [...new Set(names)].sort();
 }
 
