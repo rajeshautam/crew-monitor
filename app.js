@@ -36,7 +36,7 @@ function el(tag, props = {}, ...children) {
     else if (key in node && key !== 'list') node[key] = value;
     else node.setAttribute(key, value);
   }
-  for (const child of children.flat()) {
+  for (const child of children.flat(Infinity)) {
     if (child !== null && child !== undefined && child !== false) node.append(child);
   }
   return node;
@@ -820,8 +820,22 @@ function reportsView() {
         onclick: () => CrewReports.download(CrewReports.excelBlob(details()), fileName('xlsx')),
       }, 'Download Excel')),
     !bad && entries.length === 0 ? el('p', { class: 'count' }, 'No entries for these dates.') : null,
-    Object.entries(summary.subjects).map(([subject, count]) => lv(subject, count)),
+    el('div', { class: 'report-subjects' }, Object.entries(summary.subjects).map(([subject, count]) => lv(subject, count))),
+    !bad && entries.length ? reportPreview(entries) : null,
   ];
+}
+
+// The same rows the downloads contain, so they can be checked first.
+function reportPreview(entries) {
+  const { head, body } = CrewReports.table(entries);
+  const limit = 300;
+  return el('div', { class: 'report-preview' },
+    el('h2', {}, 'Preview'),
+    body.length > limit ? el('div', { class: 'count' }, `Showing the first ${limit} of ${body.length} rows. The download has them all.`) : null,
+    el('div', { class: 'table-scroll', tabIndex: 0 },
+      el('table', {},
+        el('thead', {}, el('tr', {}, head.map((name) => el('th', {}, name)))),
+        el('tbody', {}, body.slice(0, limit).map((row) => el('tr', {}, row.map((cell) => el('td', {}, String(cell)))))))));
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -984,6 +998,7 @@ function render() {
           },
         }, 'Sign out'))),
     el('main', {},
+      state.updateReady ? el('button', { class: 'banner banner-button', type: 'button', onclick: () => window.location.reload() }, 'A new version is ready. Tap to update.') : null,
       state.error ? el('div', { class: 'banner error' }, state.error) : null,
       state.notice ? el('div', { class: 'banner' }, state.notice) : null,
       state.data?.offlineAt
@@ -1002,7 +1017,14 @@ window.addEventListener('beforeinstallprompt', (event) => {
 });
 
 if ('serviceWorker' in navigator) {
+  const hadVersion = Boolean(navigator.serviceWorker.controller);
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // A new version never reloads by itself, so it can't lose a half-filled form.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadVersion) return;
+    state.updateReady = true;
+    render();
+  });
 }
 
 (async () => {

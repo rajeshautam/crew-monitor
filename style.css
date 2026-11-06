@@ -86,6 +86,10 @@ dialog h2 { margin-top: 0; }
 .wide-button { width: 100%; }
 main > .auth-card { max-width: 420px; }
 
+/* Keeps every header button on screen: the buttons wrap instead of running off the edge. */
+header > div { flex: 0 1 auto; }
+nav { flex: 1 1 320px; min-width: 0; justify-content: flex-end; }
+
 /* Dashboard */
 .reports-button { font-weight: 700; letter-spacing: .04em; padding: 10px 22px; }
 .banner-button { display: block; width: 100%; text-align: left; color: var(--ink); font-weight: 700; }
@@ -93,7 +97,12 @@ main > .auth-card { max-width: 420px; }
 /* Reports */
 .report-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; max-width: 760px; }
 .report-actions { margin-top: 14px; }
-main > .lv:first-of-type { margin-top: 10px; }
+.report-subjects { margin-top: 12px; }
+.table-scroll { overflow: auto; max-height: 60vh; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.table-scroll table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.table-scroll th { position: sticky; top: 0; background: var(--accent); color: #fff; text-align: left; padding: 6px 8px; }
+.table-scroll td { padding: 5px 8px; border-top: 1px solid var(--border); }
+.table-scroll tbody tr:nth-child(even) { background: #f3fbfb; }
 
 /* Admin */
 .user-card.status-pending { border-color: var(--accent); border-width: 2px; }
