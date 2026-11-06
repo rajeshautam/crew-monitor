@@ -489,6 +489,7 @@ function trainsView() {
     count.textContent = `${matches.length} trains found`;
     list.replaceChildren(...matches.slice(0, 120).map((t) => el('div', { class: 'card' },
       el('h3', {}, `Train ${t.trainNo}${t.mode ? ` · ${t.mode}` : ''}`),
+      t.modeDetails ? el('div', { class: 'mode-details' }, `(${t.modeDetails})`) : null,
       lv('From', [t.fromStn, t.depTime, t.depPf].filter(Boolean).join(' - ')),
       lv('To', [t.toStn, t.arrTime, t.arrPf].filter(Boolean).join(' - ')),
       lv('Set', t.setNo), lv('Car', t.car), lv('Service', t.service), lv('Link', t.link),
