@@ -1019,6 +1019,11 @@ window.addEventListener('beforeinstallprompt', (event) => {
 if ('serviceWorker' in navigator) {
   const hadVersion = Boolean(navigator.serviceWorker.controller);
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // An installed app can stay open for days, so look for a new version whenever it comes back into view.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    navigator.serviceWorker.getRegistration().then((registration) => registration?.update()).catch(() => {});
+  });
   // A new version never reloads by itself, so it can't lose a half-filled form.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadVersion) return;
