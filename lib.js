@@ -325,6 +325,19 @@ function lcdShown(raw) {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? displayDate(iso) : iso;
 }
 
+// The admin's All Entries list, newest first. A date filter leaves out rows with no usable date.
+function filterEntries(entries, { from = '', to = '', cli = '', text = '' } = {}) {
+  const wantedCli = cli.trim().toLowerCase();
+  const words = text.trim().toLowerCase();
+  return entries
+    .filter((e) => (!from || e.date >= from) && (!to || e.date <= to)
+      && (!(from || to) || /^\d{4}-\d{2}-\d{2}$/.test(e.date))
+      && (!wantedCli || String(e.userMail ?? '').trim().toLowerCase() === wantedCli)
+      && (!words || [e.nameOfMotorman, e.trainNo, e.unitNo, e.sub, e.cliName]
+        .some((v) => String(v ?? '').toLowerCase().includes(words))))
+    .sort((a, b) => b.sortKey - a.sortKey);
+}
+
 function activityMessage(e) {
   const time = normaliseTime(e.depTime);
   return [
@@ -337,7 +350,7 @@ function activityMessage(e) {
 }
 
 return {
-  latestActivity, activityMessage,
+  latestActivity, activityMessage, filterEntries,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };

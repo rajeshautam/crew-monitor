@@ -227,6 +227,7 @@ function go(view) {
   state.notice = '';
   state.tempPassword = view === 'admin' ? state.tempPassword : null;
   if (view === 'entry' && (!state.form || state.form.id)) {
+    state.formReturn = 'dashboard';
     state.form = newForm();
     // Where the entry is made, recorded quietly like the phone app does.
     const form = state.form;
@@ -247,7 +248,8 @@ function newForm() {
   };
 }
 
-function editEntry(entry) {
+function editEntry(entry, returnTo = 'dashboard') {
+  state.formReturn = returnTo;
   state.form = {
     ...entry,
     dateText: display(entry.date),
@@ -313,7 +315,7 @@ async function runSave(action, message) {
   try {
     await action();
     state.form = null;
-    state.view = 'dashboard';
+    state.view = state.formReturn ?? 'dashboard';
     await refresh();
     state.notice = message;
   } catch (error) {
@@ -470,6 +472,48 @@ function report() {
   ];
 }
 
+// Every entry, for an admin to find and open. Saving or deleting comes back here.
+function allEntriesView() {
+  if (!isAdmin()) return [el('p', {}, 'Administrator access required.')];
+  state.allFilters ??= { from: '', to: '', cli: '', text: '' };
+  const filters = state.allFilters;
+  const limit = 100;
+  const list = el('div', { class: 'cards' });
+  const count = el('div', { class: 'count' });
+  renderList = () => {
+    const matches = CrewLib.filterEntries(state.data.entries, filters);
+    count.textContent = matches.length > limit
+      ? `${matches.length} entries. Showing the newest ${limit}, so filter to find older ones.`
+      : `${matches.length} ${matches.length === 1 ? 'entry' : 'entries'}`;
+    list.replaceChildren(...matches.slice(0, limit).map((entry) => el('button', {
+      class: 'card', type: 'button', onclick: () => editEntry(entry, 'allEntries'),
+    },
+    el('h3', { class: gradeClass(entry.grade) }, entry.nameOfMotorman || '—', entry.deficiencyFound ? el('span', { class: 'flag' }, '  !') : null),
+    lv('Date', display(entry.date)),
+    lv('CLI', entry.cliName || entry.userMail),
+    lv('Subject', entry.sub),
+    lv('Train', entry.trainNo),
+    lv('Route', `${entry.fromStn} → ${entry.toStn}`))));
+  };
+  renderList();
+  const dateInput = (label, key) => el('label', {}, el('span', {}, label),
+    el('input', { type: 'date', value: filters[key], onchange: (e) => { filters[key] = e.target.value; renderList(); } }));
+  return [
+    el('h2', {}, 'All Entries'),
+    el('div', { class: 'report-filters' },
+      dateInput('From date', 'from'),
+      dateInput('To date', 'to'),
+      el('label', {}, el('span', {}, 'CLI'),
+        el('select', { onchange: (e) => { filters.cli = e.target.value; renderList(); } },
+          el('option', { value: '' }, 'All CLIs'),
+          reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === filters.cli }, `${name} (${mail})`))))),
+    searchBox(filters.text, 'Motorman, train, unit, subject or CLI', (v) => { filters.text = v; }),
+    el('div', { class: 'toolbar' },
+      el('button', { type: 'button', class: 'ghost', onclick: () => { state.allFilters = null; render(); } }, 'Clear filters')),
+    count, list,
+  ];
+}
+
 function searchBox(value, placeholder, onInput) {
   return el('input', {
     class: 'search', type: 'search', value, placeholder, 'aria-label': placeholder,
@@ -608,7 +652,7 @@ function entryView() {
       el('div', { class: 'actions' },
         readOnly ? null : el('button', { type: 'submit', disabled: state.loading }, f.id ? 'Save Changes' : 'Submit Entry'),
         f.id && !readOnly ? el('button', { type: 'button', class: 'danger', disabled: state.loading, onclick: deleteForm }, 'Delete Entry') : null,
-        f.id ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go('dashboard'); } }, readOnly ? 'Back' : 'Cancel') : null)),
+        f.id ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go(state.formReturn ?? 'dashboard'); } }, readOnly ? 'Back' : 'Cancel') : null)),
   ];
 }
 
@@ -1004,7 +1048,7 @@ function render() {
   }
   const tab = (view, label) => el('button', { class: state.view === view ? 'active' : '', onclick: () => go(view) }, label);
   const body = state.data ? {
-    dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, message: messageView, admin: adminView, password: () => [passwordForm(false)],
+    dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, message: messageView, allEntries: allEntriesView, admin: adminView, password: () => [passwordForm(false)],
   }[state.view]() : [el('p', { class: 'center' }, state.loading ? 'Loading from Google Sheets…' : 'No data loaded.')];
 
   root.replaceChildren(
@@ -1014,6 +1058,7 @@ function render() {
         el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`)),
       el('nav', {},
         tab('dashboard', 'Dashboard'), tab('trains', 'Trains'), tab('crew', 'Crew'), tab('entry', '+ New Entry'), tab('message', 'Message'),
+        isAdmin() ? tab('allEntries', 'All Entries') : null,
         isAdmin() ? tab('admin', 'Admin') : null,
         state.installPrompt ? el('button', { class: 'ghost', onclick: installApp }, 'Install app') : null,
         tab('password', 'Password'),
@@ -1027,6 +1072,7 @@ function render() {
             state.form = null;
             state.selectedCli = '';
             state.adminUsers = null;
+            state.allFilters = null;
             state.view = 'dashboard';
             state.authView = 'login';
             state.authError = '';
