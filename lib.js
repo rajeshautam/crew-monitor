@@ -319,12 +319,19 @@ function latestActivity(entries, email) {
     .sort((a, b) => b.sortKey - a.sortKey)[0] ?? null;
 }
 
+// LCD as DD-MMM-YYYY. Anything that isn't a date is shown as it was typed.
+function lcdShown(raw) {
+  const iso = toIsoDate(raw);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? displayDate(iso) : iso;
+}
+
 function activityMessage(e) {
+  const time = normaliseTime(e.depTime);
   return [
     `${e.trainNo}/${e.unitNo}`,
-    `${e.nameOfMotorman}/${e.grade}`,
-    `LCD - ${e.lcd}`.trim(),
-    `${e.fromStn} to ${e.toStn} ${normaliseTime(e.depTime)}`.trim(),
+    `${e.nameOfMotorman}/Grad : ${e.grade}`.trim(),
+    `LCD - ${lcdShown(e.lcd)}`.trim(),
+    `${e.fromStn} to ${e.toStn}${time ? ` Dep : ${time}` : ''}`,
     e.sub,
   ].join('\n');
 }
