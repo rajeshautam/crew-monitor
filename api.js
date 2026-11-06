@@ -2,7 +2,8 @@
 window.crew = (() => {
   const SESSION_KEY = 'crew-session';
   const CACHE_NAME = 'crew-last-data';
-  const CACHE_URL = './__last-data.json';
+  // Only a storage label, never fetched. The Cache API accepts http(s) only, and the desktop app's own address isn't.
+  const CACHE_URL = 'https://crew-monitor.invalid/last-data.json';
 
   function loadSession() {
     try {

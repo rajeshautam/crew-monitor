@@ -830,6 +830,38 @@ function reportsView() {
   ];
 }
 
+// Ready to post in a WhatsApp group. The user picks the group and sends it in WhatsApp.
+function messageView() {
+  const entry = CrewLib.latestActivity(state.data.entries, state.user.email, isAdmin());
+  if (!entry) {
+    return [el('h2', {}, 'Latest Activity'), el('p', { class: 'count' }, 'No Footplating, Monitoring, Piloting or Ambush Check entries yet.')];
+  }
+  const text = CrewLib.activityMessage(entry);
+  return [
+    el('h2', {}, 'Latest Activity'),
+    el('p', { class: 'count' }, `Entry date ${CrewLib.displayDate(entry.date)}${isAdmin() ? ` · ${entry.cliName}` : ''}`),
+    el('pre', { class: 'activity-message' }, text),
+    el('div', { class: 'toolbar' },
+      el('button', {
+        type: 'button',
+        onclick: () => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener'),
+      }, 'Send to WhatsApp'),
+      el('button', {
+        type: 'button',
+        class: 'ghost',
+        onclick: async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            state.notice = 'Copied. Paste it into your WhatsApp group.';
+          } catch {
+            state.notice = 'Could not copy. Please select the text and copy it.';
+          }
+          render();
+        },
+      }, 'Copy')),
+  ];
+}
+
 // The same rows the downloads contain, so they can be checked first.
 function reportPreview(entries) {
   const { head, body } = CrewReports.table(entries);
@@ -972,7 +1004,7 @@ function render() {
   }
   const tab = (view, label) => el('button', { class: state.view === view ? 'active' : '', onclick: () => go(view) }, label);
   const body = state.data ? {
-    dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, admin: adminView, password: () => [passwordForm(false)],
+    dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, message: messageView, admin: adminView, password: () => [passwordForm(false)],
   }[state.view]() : [el('p', { class: 'center' }, state.loading ? 'Loading from Google Sheets…' : 'No data loaded.')];
 
   root.replaceChildren(
@@ -981,7 +1013,7 @@ function render() {
         el('h1', {}, 'Crew Monitor'),
         el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`)),
       el('nav', {},
-        tab('dashboard', 'Dashboard'), tab('trains', 'Trains'), tab('crew', 'Crew'), tab('entry', '+ New Entry'),
+        tab('dashboard', 'Dashboard'), tab('trains', 'Trains'), tab('crew', 'Crew'), tab('entry', '+ New Entry'), tab('message', 'Message'),
         isAdmin() ? tab('admin', 'Admin') : null,
         state.installPrompt ? el('button', { class: 'ghost', onclick: installApp }, 'Install app') : null,
         tab('password', 'Password'),

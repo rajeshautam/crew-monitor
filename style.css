@@ -121,3 +121,5 @@ nav { flex: 1 1 320px; min-width: 0; justify-content: flex-end; }
   nav { gap: 2px; width: 100%; }
   nav button { padding: 7px 9px; font-size: 13px; }
 }
+
+.activity-message { white-space: pre-wrap; font-size: 1.05rem; line-height: 1.5; margin: 0 0 12px; padding: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; font-family: inherit; }
