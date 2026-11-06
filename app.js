@@ -132,9 +132,13 @@ function dueLine(crew) {
 }
 
 function tmLine(name, phone) {
-  if (!phone) return lv('Train Manager', name);
+  if (!phone) {
+    const line = lv('Train Manager', name);
+    line.classList.add('tm-name');
+    return line;
+  }
   return el('span', { class: 'lv' }, el('b', {}, 'Train Manager:'),
-    el('button', { type: 'button', class: 'link', onclick: () => window.crew.callPhone(phone) }, `${name} · ${phone}`));
+    el('button', { type: 'button', class: 'link tm-name', onclick: () => window.crew.callPhone(phone) }, `${name} · ${phone}`));
 }
 
 function computeLastDates(crew) {

@@ -90,6 +90,8 @@ main > .auth-card { max-width: 420px; }
 header > div { flex: 0 1 auto; }
 nav { flex: 1 1 320px; min-width: 0; justify-content: flex-end; }
 
+.tm-name, button.link.tm-name { color: #00008b; font-weight: 600; }
+
 /* Dashboard */
 .reports-button { font-weight: 700; letter-spacing: .04em; padding: 10px 22px; }
 .banner-button { display: block; width: 100%; text-align: left; color: var(--ink); font-weight: 700; }
