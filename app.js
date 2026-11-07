@@ -1456,7 +1456,7 @@ function render() {
   document.body.classList.toggle('more-open', Boolean(state.moreOpen));
   const body = state.data ? {
     dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, message: messageView, allEntries: allEntriesView, admin: adminView, password: () => [passwordForm(false)],
-  }[state.view]() : [el('p', { class: 'center' }, state.loading ? 'Loading from Google Sheets…' : 'No data loaded.')];
+  }[state.view]() : [el('p', { class: 'center' }, state.loading ? 'Loading Data…' : 'No data loaded.')];
 
   root.replaceChildren(
     el('header', {},
