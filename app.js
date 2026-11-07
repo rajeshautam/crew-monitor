@@ -149,7 +149,7 @@ function computeLastDates(crew) {
   let counselling = '';
   let footplating = '';
   for (const e of entriesFor(crew)) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !CrewLib.doneByNominatedCli(e, crew, state.data.cliNames)) continue;
     const subject = e.sub.toUpperCase();
     if (subject.includes('COUNSELLING') && e.date > counselling) counselling = e.date;
     if (subject.includes('FOOTPLATING') && e.date > footplating) footplating = e.date;

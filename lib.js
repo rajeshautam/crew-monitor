@@ -291,11 +291,25 @@ function validateEntry(e, isEdit) {
   return null;
 }
 
+// The same name however it's written: S.B.SINGH and S.B. SINGH, or GAUTAM RAJESH and RAJESH GAUTAM.
+function nameKey(name) {
+  return String(name ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').split('').sort().join('');
+}
+
+// Only these count towards Last Counselling and Last Footplating. Anyone else's entry stays a normal entry.
+// Goes by who was nominated when the entry was made, so a later change of CLI doesn't undo it.
+function doneByNominatedCli(entry, crew, cliNames = {}) {
+  const nominated = nameKey(entry.nameOfNominCli || crew.cliName);
+  if (!nominated) return false;
+  return [entry.cliName, cliNames[String(entry.userMail ?? '').trim().toLowerCase()]].some((name) => nameKey(name) === nominated);
+}
+
 // Everything the backend sends after sign-in, in the shape the screens use.
 function assemble(raw, now = new Date()) {
   const entries = (raw.entries ?? []).slice(1).map(parseEntry).filter(Boolean);
   return {
     user: raw.user,
+    cliNames: Object.fromEntries((raw.cliNames ?? []).map((r) => [cell(r, 0).toLowerCase(), cell(r, 1)])),
     cliName: raw.user?.name ?? '',
     crew: parseCrew(raw.crew ?? [], raw.bookings ?? [], raw.setMaster ?? [], now, raw.vision ?? []),
     trains: parseTrains(raw.legs ?? [], raw.trainMm ?? [], parseTmData(raw.tmData ?? []), raw.bookings ?? [], now, parseTmContacts(raw.tmContacts ?? [])),
@@ -363,7 +377,7 @@ function activityMessage(e) {
 }
 
 return {
-  latestActivity, activityMessage, filterEntries, arrivalPending,
+  latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };
