@@ -735,10 +735,7 @@ function dashboard() {
     el('div', { class: 'cards' }, recent.map(entryCard)),
     el('h2', {}, 'My Motorman'),
     el('div', { class: 'toolbar' },
-      el('label', {}, el('span', {}, 'CLI Name'),
-        el('select', { onchange: (e) => { state.selectedCli = e.target.value; render(); } },
-          el('option', { value: '' }, 'Select CLI'),
-          cliNames().map((n) => el('option', { value: n, selected: n === state.selectedCli }, n))))),
+      cliPicker('CLI Name', 'cli', cliNames().map((n) => [n, n]), state.selectedCli, 'Type to search CLI', (n) => { state.selectedCli = n; render(); })),
     state.selectedCli ? el('div', { class: 'count' }, `${mine.length} motormen. Click one for the report.`) : null,
     el('div', { class: 'cards' }, mine.map((c) => {
       const last = lastDates(c);
@@ -802,10 +799,7 @@ function allEntriesView() {
     el('div', { class: 'report-filters' },
       dateInput('From date', 'from'),
       dateInput('To date', 'to'),
-      admin ? el('label', {}, el('span', {}, 'CLI'),
-        el('select', { onchange: (e) => { filters.cli = e.target.value; renderList(); } },
-          el('option', { value: '' }, 'All CLIs'),
-          reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === filters.cli }, `${name} (${mail})`)))) : null),
+      admin ? cliPicker('CLI', 'all-cli', reportCliOptions().map(([mail, name]) => [mail, `${name} (${mail})`]), filters.cli, 'All CLIs. Type to search', (mail) => { filters.cli = mail; renderList(); }) : null),
     searchBox(filters.text, admin ? 'Motorman, train, unit, subject or CLI' : 'Motorman, train, unit or subject', (v) => { filters.text = v; }),
     el('div', { class: 'toolbar' },
       el('button', { type: 'button', class: 'ghost', onclick: () => { state.allFilters = null; render(); } }, 'Clear filters')),
@@ -821,6 +815,23 @@ function searchBox(value, placeholder, onInput) {
 }
 
 let renderList = () => {};
+
+// A list of CLIs you can type into. choices are [value, text]. An empty box means none chosen.
+function cliPicker(label, id, choices, current, placeholder, onPick) {
+  return el('label', {}, el('span', {}, label),
+    el('datalist', { id: `${id}-list` }, choices.map(([, text]) => el('option', { value: text }))),
+    el('input', {
+      type: 'search', list: `${id}-list`, 'data-field': id, placeholder, autocomplete: 'off',
+      value: choices.find(([v]) => v === current)?.[1] ?? '',
+      onfocus: (e) => e.target.select(),
+      oninput: (e) => {
+        const typed = e.target.value.trim().toLowerCase();
+        if (!typed) { onPick(''); return; }
+        const match = choices.find(([, text]) => text.toLowerCase() === typed);
+        if (match) onPick(match[0]);
+      },
+    }));
+}
 
 function trainsView() {
   const list = el('div', { class: 'cards' });
@@ -1187,10 +1198,7 @@ function reportsView() {
     el('div', { class: 'report-filters' },
       dateInput('From date', 'reportFrom'),
       dateInput('To date', 'reportTo'),
-      isAdmin() ? el('label', {}, el('span', {}, 'CLI'),
-        el('select', { onchange: (e) => { state.reportCli = e.target.value; render(); } },
-          el('option', { value: '' }, 'All CLIs'),
-          reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === state.reportCli }, `${name} (${mail})`)))) : null),
+      isAdmin() ? cliPicker('CLI', 'report-cli', reportCliOptions().map(([mail, name]) => [mail, `${name} (${mail})`]), state.reportCli, 'All CLIs. Type to search', (mail) => { state.reportCli = mail; render(); }) : null),
     bad ? el('div', { class: 'banner error' }, 'The From date must not be after the To date.') : null,
     el('div', { class: 'kpis report-summary' },
       el('div', { class: 'kpi' }, el('strong', {}, String(summary.count)), 'Entries'),
