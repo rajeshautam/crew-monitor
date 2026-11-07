@@ -320,11 +320,14 @@ function latestActivity(entries, email) {
 }
 
 // The signed-in user's own entries still waiting for an arrival time, newest first.
-// Older rows with no times at all aren't waiting for anything, so they need a Dep Time to count.
+// Before this date most rows have a Dep Time and no Arr Time (723 of 934), because arrivals weren't recorded then.
+const ARRIVAL_PENDING_FROM = '2026-11-07';
+
 function arrivalPending(entries, email) {
   const wanted = String(email ?? '').trim().toLowerCase();
   return entries
-    .filter((e) => String(e.depTime ?? '').trim() && !String(e.arrTime ?? '').trim()
+    .filter((e) => e.date >= ARRIVAL_PENDING_FROM
+      && String(e.depTime ?? '').trim() && !String(e.arrTime ?? '').trim()
       && String(e.userMail ?? '').trim().toLowerCase() === wanted)
     .sort((a, b) => b.sortKey - a.sortKey);
 }
