@@ -1461,7 +1461,6 @@ function render() {
   root.replaceChildren(
     el('header', {},
       el('div', { class: 'brand' },
-        el('img', { src: 'icons/icon-192.png', alt: '' }),
         el('div', { class: 'brand-text' },
           el('h1', {}, 'Crew Monitor'),
           el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`))),
