@@ -78,7 +78,8 @@ function formatTime(typed) {
 function shiftFor(dep, arr) {
   const ok = /^([01]\d|2[0-3]):[0-5]\d$/;
   if (!ok.test(dep) || !ok.test(arr)) return null;
-  return dep >= '06:00' && arr <= '18:00' ? 'DAY' : 'NIGHT';
+  // Exactly 18:00 or 06:00 counts as day.
+  return dep > '18:00' || arr < '06:00' ? 'NIGHT' : 'DAY';
 }
 
 function kmsBetween(from, to) {
@@ -613,7 +614,7 @@ function selectField(label, name, options) {
 
 function timeField(label, name) {
   return field(label, el('input', {
-    type: 'text', value: state.form[name] ?? '', placeholder: 'HH:MM', inputMode: 'numeric',
+    type: 'text', value: state.form[name] ?? '', placeholder: 'HH:MM', inputMode: 'numeric', 'data-field': name,
     oninput: (e) => {
       e.target.value = formatTime(e.target.value);
       setFormField(name, e.target.value);
