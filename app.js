@@ -627,9 +627,9 @@ function setFormField(field, value) {
   }
 }
 
-// The motorman's latest entry of any subject, leaving out the one being filled in.
+// The motorman's latest footplating or counselling, leaving out the entry being filled in.
 function lastContactDate(crew) {
-  return CrewLib.latestEntryDate(entriesFor(crew), state.form?.id);
+  return CrewLib.latestContactDate(entriesFor(crew), state.form?.id);
 }
 
 function crewFor(name) {

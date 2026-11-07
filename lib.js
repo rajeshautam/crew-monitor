@@ -352,9 +352,11 @@ function lcdShown(raw) {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? displayDate(iso) : iso;
 }
 
-// The latest entry date of any subject as DD/MM/YYYY, the format the sheet's LCD column uses.
-function latestEntryDate(entries, exceptId) {
-  const dates = entries.filter((e) => e.id !== exceptId && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e) => e.date);
+// The latest footplating or counselling entry as DD/MM/YYYY, the format the sheet's LCD column uses.
+function latestContactDate(entries, exceptId) {
+  const dates = entries
+    .filter((e) => e.id !== exceptId && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && /FOOTPLATING|COUNSELLING/i.test(e.sub ?? ''))
+    .map((e) => e.date);
   return dates.length ? toSheetDate(dates.sort().at(-1)) : '';
 }
 
@@ -383,7 +385,7 @@ function activityMessage(e) {
 }
 
 return {
-  latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli, lcdShown, latestEntryDate,
+  latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli, lcdShown, latestContactDate,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };
