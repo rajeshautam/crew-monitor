@@ -252,6 +252,7 @@ function editEntry(entry, returnTo = 'dashboard') {
   state.formReturn = returnTo;
   state.form = {
     ...entry,
+    crewFilled: Boolean(crewFor(entry.nameOfMotorman)),
     dateText: display(entry.date),
     depTime: normaliseTime(entry.depTime),
     arrTime: normaliseTime(entry.arrTime),
@@ -349,10 +350,21 @@ function lastContactDate(crew) {
   return `${d}/${m}/${y}`;
 }
 
+function crewFor(name) {
+  const wanted = String(name ?? '').trim().toLowerCase();
+  return state.data.crew.find((c) => c.name.trim().toLowerCase() === wanted);
+}
+
 function fillFromCrew(name) {
-  const crew = state.data.crew.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
-  if (!crew) return false;
+  const crew = crewFor(name);
+  if (!crew) {
+    if (!state.form.crewFilled) return false;
+    // The name changed, and these details belonged to the motorman it used to be.
+    Object.assign(state.form, { crewFilled: false, grade: '', cmsCode: '', code: '', nameOfNominCli: '', depot: '', spec: '', lcd: '' });
+    return true;
+  }
   Object.assign(state.form, {
+    crewFilled: true,
     nameOfMotorman: crew.name, grade: crew.grade, cmsCode: crew.cmsId, code: crew.code,
     nameOfNominCli: crew.cliName, depot: crew.depot, spec: crew.vision, lcd: lastContactDate(crew),
   });
@@ -573,12 +585,20 @@ function field(label, control, wide) {
 
 function textField(label, name, opts = {}) {
   return field(label, el('input', {
-    type: 'text', value: state.form[name] ?? '', list: opts.list ?? '',
+    type: 'text', value: state.form[name] ?? '', list: opts.list ?? '', 'data-field': name,
+    readOnly: Boolean(opts.locked), class: opts.locked ? 'locked' : '',
+    title: opts.locked ? 'Filled in from the crew data' : '',
     oninput: (e) => {
       const value = opts.upper ? e.target.value.toUpperCase() : e.target.value;
       if (opts.upper) e.target.value = value;
       setFormField(name, value);
-      if (opts.after && opts.after(value)) render();
+      if (opts.after && opts.after(value)) {
+        render();
+        // Redrawing replaces the box, so put the cursor back and let typing carry on.
+        const again = document.querySelector(`input[data-field="${name}"]`);
+        again?.focus();
+        again?.setSelectionRange(again.value.length, again.value.length);
+      }
     },
   }), opts.wide);
 }
@@ -606,7 +626,9 @@ function entryView() {
   const f = state.form;
   const readOnly = Boolean(f.id) && !canChange(f);
   const someoneElses = Boolean(f.id) && String(f.userMail).toLowerCase() !== String(state.user.email).toLowerCase();
-  const crew = state.data.crew.find((c) => c.name === f.nameOfMotorman);
+  const crew = crewFor(f.nameOfMotorman);
+  // Details from the crew data can't be typed over. A blank one is still open, for when the data has nothing.
+  const fromCrew = (name) => ({ locked: Boolean(crew) && String(f[name] ?? '').trim() !== '' });
   const picker = el('input', {
     type: 'date', title: 'Pick a date', 'aria-label': 'Pick a date', value: parseDisplay(f.dateText) ?? '',
     onchange: (e) => { if (e.target.value) { f.dateText = display(e.target.value); render(); } },
@@ -625,8 +647,8 @@ function entryView() {
       el('h2', {}, 'Crew Information'),
       textField('Name of Motorman *', 'nameOfMotorman', { list: 'crew-list', upper: true, after: fillFromCrew, wide: true }),
       crew ? el('div', { class: 'card wide' }, crewDetails(crew)) : null,
-      textField('Grade', 'grade'), textField('CMS-ID', 'cmsCode'),
-      textField('Nominated CLI', 'nameOfNominCli'), textField('Depot', 'depot'),
+      textField('Grade', 'grade', fromCrew('grade')), textField('CMS-ID', 'cmsCode', fromCrew('cmsCode')),
+      textField('Nominated CLI', 'nameOfNominCli', fromCrew('nameOfNominCli')), textField('Depot', 'depot', fromCrew('depot')),
       el('h2', {}, 'Train Details'),
       textField('Train No *', 'trainNo', { list: 'train-list', upper: true, after: fillFromTrain }),
       textField('Unit No', 'unitNo'),
@@ -642,7 +664,7 @@ function entryView() {
         onclick: () => { f.dayNight = s; render(); },
       }, s)))),
       el('h2', {}, 'Inspection'),
-      textField('VISION', 'spec'), textField('LCD (Date)', 'lcd'),
+      textField('VISION', 'spec', fromCrew('spec')), textField('LCD (Date)', 'lcd', fromCrew('lcd')),
       textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true }),
       el('h2', {}, 'Deficiency Report'),
       el('label', { class: 'check wide' },
