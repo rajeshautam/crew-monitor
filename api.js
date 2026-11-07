@@ -123,11 +123,8 @@ window.crew = (() => {
       }
     },
 
-    async saveEntry(entry) {
-      const isNew = !entry.id;
-      const row = CrewLib.entryToRow({ ...entry, id: entry.id || crypto.randomUUID() });
-      await post(isNew ? 'addEntry' : 'updateEntry', { row });
-    },
+    // Adds the row the first time and replaces it after that, so it's safe to send again.
+    saveRow: (row) => post('saveEntry', { row }, 30000),
     deleteEntry: (id) => post('deleteEntry', { id }),
 
     listUsers: () => post('listUsers').then((r) => r.users),

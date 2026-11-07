@@ -75,9 +75,12 @@ function formatTime(typed) {
   return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
 }
 
-function shiftFor(dep, arr) {
-  const ok = /^([01]\d|2[0-3]):[0-5]\d$/;
-  if (!ok.test(dep) || !ok.test(arr)) return null;
+const validTime = (time) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+
+function shiftFor(dep, arrival) {
+  // Until the arrival is known, go by the departure alone. It's worked out again once it is.
+  const arr = arrival || dep;
+  if (!validTime(dep) || !validTime(arr)) return null;
   // Exactly 18:00 or 06:00 counts as day.
   return dep > '18:00' || arr < '06:00' ? 'NIGHT' : 'DAY';
 }
@@ -94,7 +97,7 @@ function entriesFor(crew) {
     .sort((a, b) => b.sortKey - a.sortKey);
 }
 
-const lastDatesCache = new WeakMap();
+let lastDatesCache = new WeakMap();
 
 function lastDates(crew) {
   if (!lastDatesCache.has(crew)) lastDatesCache.set(crew, computeLastDates(crew));
@@ -179,10 +182,14 @@ function confirmBox({ title, text, action, danger }) {
 async function refresh() {
   state.loading = true;
   state.error = '';
+  loadUnsent();
   render();
   try {
     state.data = await window.crew.load();
     state.user = state.data.user;
+    // Changes still on their way aren't in what the server just sent.
+    Object.values(unsent).forEach(showRow);
+    if (Object.keys(unsent).length) sendUnsent();
     if (isAdmin()) state.adminUsers = await window.crew.listUsers().catch(() => state.adminUsers);
     if (!state.selectedCli) {
       const words = (s) => s.toUpperCase().split(/\s+/).filter(Boolean).sort().join(' ');
@@ -224,15 +231,23 @@ function cliNames() {
 }
 
 function go(view) {
+  // Leaving saves what can be saved. A new entry that can't be saved yet waits here for the person to come back.
+  const held = state.view === 'entry' && !flushSave() && state.form.id ? holdReason(state.form) : '';
   state.view = view;
-  state.notice = '';
+  state.notice = held ? `Your last change was not saved. ${held}` : '';
   state.tempPassword = view === 'admin' ? state.tempPassword : null;
-  if (view === 'entry' && (!state.form || state.form.id)) {
+  if (state.form?.id) state.form = null;
+  if (view === 'entry' && !state.form) {
     state.formReturn = 'dashboard';
     state.form = newForm();
     // Where the entry is made, recorded quietly like the phone app does.
     const form = state.form;
-    window.crew.position().then((here) => { if (here && !form.location) form.location = here; });
+    window.crew.position().then((here) => {
+      if (here && !form.location) {
+        form.location = here;
+        if (form === state.form && form.id) scheduleSave();
+      }
+    });
   }
   if (view === 'admin') loadUsers();
   render();
@@ -242,22 +257,30 @@ function go(view) {
 function newForm() {
   const time = nowTime();
   return {
+    newId: crypto.randomUUID(), startedHere: true, userMail: state.user.email, cliName: state.data.cliName || state.user.email,
     dateText: display(isoToday()), nameOfMotorman: '', grade: '', cmsCode: '', code: '', nameOfNominCli: '', depot: '',
-    trainNo: '', unitNo: '', sub: '', line: '', fromStn: '', toStn: '', depTime: time, arrTime: time,
-    kms: '', dayNight: shiftFor(time, time) ?? 'DAY', spec: '', lcd: '', tmgrName: '',
+    trainNo: '', unitNo: '', sub: '', line: '', fromStn: '', toStn: '', depTime: time, arrTime: '',
+    kms: '', dayNight: shiftFor(time, '') ?? 'DAY', spec: '', lcd: '', tmgrName: '',
     deficiencyFound: false, remarkDeficiency: '', description: '',
   };
 }
 
 function editEntry(entry, returnTo = 'dashboard') {
+  flushSave();
   state.formReturn = returnTo;
+  const waiting = CrewLib.arrivalPending([entry], entry.userMail).length > 0 && canChange(entry);
   state.form = {
     ...entry,
     crewFilled: Boolean(crewFor(entry.nameOfMotorman)),
     dateText: display(entry.date),
     depTime: normaliseTime(entry.depTime),
-    arrTime: normaliseTime(entry.arrTime),
+    // Offered, not saved: opening an entry to look at it must not record an arrival.
+    arrTime: waiting ? nowTime() : normaliseTime(entry.arrTime),
+    arrivalOffered: waiting,
+    openedFrom: entry.fromStn,
+    openedTo: entry.toStn,
   };
+  state.form.lastRow = JSON.stringify(rowFor(state.form));
   state.view = 'entry';
   state.notice = '';
   render();
@@ -273,30 +296,227 @@ function summary(e) {
   ].join('\n');
 }
 
-async function submitForm() {
+// ── Saving as you go ──────────────────────────────────────────────────────────
+// Each change is saved a moment after typing stops, or at once on leaving the field. The newest copy of a
+// row waits in `unsent`, and is kept on this device, until the server has it, so no connection loses nothing.
+const UNSENT_KEY = 'crew-unsent';
+const SAVE_DELAY_MS = 800;
+const RETRY_MS = 15000;
+let unsent = {};
+let unsentOwner = '';
+let saveTimer = null;
+let retryTimer = null;
+let sending = null;
+let offline = false;
+
+function loadUnsent() {
+  const email = state.user?.email ?? '';
+  if (email === unsentOwner) return;
+  unsentOwner = email;
+  unsent = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(UNSENT_KEY));
+    if (saved?.email === email) unsent = saved.rows ?? {};
+  } catch { /* still kept in memory for as long as the app stays open */ }
+}
+
+function keepUnsent() {
+  try {
+    if (Object.keys(unsent).length) localStorage.setItem(UNSENT_KEY, JSON.stringify({ email: unsentOwner, rows: unsent }));
+    else localStorage.removeItem(UNSENT_KEY);
+  } catch { /* still kept in memory for as long as the app stays open */ }
+}
+
+function canEditForm(form) {
+  return !form.id || canChange(form);
+}
+
+function isKnownStation(value, form) {
+  const wanted = String(value ?? '').trim().toLowerCase();
+  if (!wanted || wanted === String(form.openedFrom ?? '').toLowerCase() || wanted === String(form.openedTo ?? '').toLowerCase()) return true;
+  return state.data.stations.some((s) => s.toLowerCase() === wanted)
+    || state.data.trains.some((t) => t.fromStn.toLowerCase() === wanted || t.toStn.toLowerCase() === wanted);
+}
+
+// Why this form can't be saved as it stands, or '' when it can.
+function holdReason(form) {
+  if (!String(form.nameOfMotorman ?? '').trim() || !String(form.trainNo ?? '').trim()) return 'Saving starts once Motorman and Train No are filled.';
+  if (!parseDisplay(form.dateText)) return 'Date must look like 05-Nov-2026.';
+  if (form.depTime && !validTime(form.depTime)) return 'Dep Time must be HH:MM, for example 09:30.';
+  if (form.arrTime && !validTime(form.arrTime)) return 'Arr Time must be HH:MM, for example 09:30.';
+  if (!isKnownStation(form.fromStn, form)) return 'Pick From Stn from the list.';
+  if (!isKnownStation(form.toStn, form)) return 'Pick To Stn from the list.';
+  return '';
+}
+
+function rowFor(form) {
+  const location = form.location ?? '';
+  return CrewLib.entryToRow({
+    ...form,
+    id: form.id || form.newId,
+    date: parseDisplay(form.dateText) ?? '',
+    arrTime: form.arrivalOffered ? '' : form.arrTime,
+    remarkDeficiency: form.deficiencyFound ? form.remarkDeficiency : '',
+    fromLocation: form.fromLocation || (form.startedHere ? location : ''),
+    toLocation: form.toLocation || (form.startedHere ? location : ''),
+  });
+}
+
+// Puts a saved row into what the screens show, without waiting for a full sync.
+function showRow(row) {
+  const entries = state.data?.entries;
+  if (!entries) return;
+  const at = entries.findIndex((e) => e.id === row[0]);
+  const old = entries[at];
+  const place = old ? old.sortKey - (Date.parse(`${old.date}T00:00:00Z`) || 0) : entries.length + 1;
+  const parsed = CrewLib.parseEntry(row, place);
+  if (old) entries[at] = parsed; else entries.push(parsed);
+  lastDatesCache = new WeakMap();
+}
+
+function paintSaveStatus() {
+  const box = document.getElementById('save-status');
   const form = state.form;
-  if (form.id && !canChange(form)) return;
-  const date = parseDisplay(form.dateText);
-  if (!date) {
-    state.error = 'Date must look like 05-Nov-2026';
+  if (!box || !form) return;
+  const hold = holdReason(form);
+  let text = 'All changes saved';
+  let kind = 'saved';
+  if (hold) {
+    text = hold;
+    kind = 'hold';
+  } else if (offline && unsent[form.id]) {
+    text = 'No connection. Saved on this device, and it will reach the sheet when the connection returns.';
+    kind = 'hold';
+  } else if (saveTimer || sending || !form.id) {
+    text = 'Saving…';
+  }
+  box.textContent = text;
+  box.className = `save-status ${kind}`;
+}
+
+function scheduleSave() {
+  const form = state.form;
+  if (!form || !canEditForm(form)) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, SAVE_DELAY_MS);
+  paintSaveStatus();
+}
+
+// False when the form can't be saved as it stands.
+function flushSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const form = state.form;
+  if (!form || !canEditForm(form)) return true;
+  if (holdReason(form)) {
+    paintSaveStatus();
+    return false;
+  }
+  const row = rowFor(form);
+  const text = JSON.stringify(row);
+  if (form.lastRow === text) {
+    paintSaveStatus();
+    return true;
+  }
+  form.lastRow = text;
+  if (!form.id) {
+    form.id = form.newId;
+    const title = document.getElementById('entry-title');
+    if (title) title.textContent = 'Edit Entry';
+    const remove = document.getElementById('entry-delete');
+    if (remove) remove.hidden = false;
+  }
+  unsent[form.id] = row;
+  keepUnsent();
+  showRow(row);
+  sendUnsent();
+  paintSaveStatus();
+  return true;
+}
+
+// One at a time and in order, so an older copy can never land after a newer one.
+function sendUnsent() {
+  if (sending) return sending;
+  clearTimeout(retryTimer);
+  if (!Object.keys(unsent).length) return Promise.resolve();
+  sending = (async () => {
+    try {
+      for (let id = Object.keys(unsent)[0]; id; id = Object.keys(unsent)[0]) {
+        const row = unsent[id];
+        paintSaveStatus();
+        try {
+          await window.crew.saveRow(row);
+          offline = false;
+        } catch (error) {
+          if (error.code === 'NETWORK') {
+            offline = true;
+            retryTimer = setTimeout(sendUnsent, RETRY_MS);
+            return;
+          }
+          if (handleSessionError(error)) {
+            render();
+            return;
+          }
+          // Refused, so sending it again won't help. Let the next change try afresh.
+          delete unsent[id];
+          keepUnsent();
+          if (state.form?.id === id) state.form.lastRow = '';
+          state.error = `Not saved: ${error.message}`;
+          render();
+          continue;
+        }
+        // A newer copy may have arrived while this one was on its way, and that one still has to go.
+        if (JSON.stringify(unsent[id]) === JSON.stringify(row)) {
+          delete unsent[id];
+          keepUnsent();
+        }
+      }
+    } finally {
+      sending = null;
+      paintSaveStatus();
+    }
+  })();
+  return sending;
+}
+
+window.addEventListener('online', () => { if (state.user && Object.keys(unsent).length) sendUnsent(); });
+// A phone can close a backgrounded app at any time.
+const saveBeforeHiding = () => { if (saveTimer) flushSave(); };
+window.addEventListener('pagehide', saveBeforeHiding);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveBeforeHiding(); });
+
+function saveArrival() {
+  const form = state.form;
+  form.arrivalOffered = false;
+  setFormField('arrTime', form.arrTime);
+  flushSave();
+  render();
+}
+
+async function finishForm() {
+  const form = state.form;
+  const hold = holdReason(form);
+  const blank = !form.id && !String(form.nameOfMotorman).trim() && !String(form.trainNo).trim();
+  if (hold && !blank) {
+    paintSaveStatus();
+    document.getElementById('save-status')?.scrollIntoView({ block: 'center' });
+    return;
+  }
+  flushSave();
+  state.form = null;
+  state.view = state.formReturn ?? 'dashboard';
+  render();
+  window.scrollTo(0, 0);
+  if (blank) return;
+  // Brings in the last dates and anything other CLIs entered, once this entry has landed.
+  await sendUnsent();
+  if (Object.keys(unsent).length) {
+    state.notice = 'Saved on this device. It will reach the sheet when the connection returns.';
     render();
     return;
   }
-  const entry = { ...form, date };
-  delete entry.dateText;
-  if (!form.id) {
-    entry.cliName = state.data.cliName || state.user.email;
-    entry.userMail = state.user.email;
-    entry.location = form.location || await window.crew.position();
-    entry.fromLocation = form.fromLocation || entry.location;
-    entry.toLocation = form.toLocation || entry.location;
-    entry.remarkDeficiency = form.deficiencyFound ? form.remarkDeficiency : '';
-  } else if (!await confirmBox({
-    title: 'Save changes?',
-    text: `This replaces the existing record in CrewMonitor Data.\n\n${summary(form)}`,
-    action: 'Save',
-  })) return;
-  await runSave(() => window.crew.saveEntry(entry), form.id ? 'Changes saved.' : 'Entry saved.');
+  state.notice = 'Entry saved.';
+  await refresh();
 }
 
 async function deleteForm() {
@@ -307,7 +527,15 @@ async function deleteForm() {
     action: 'Delete',
     danger: true,
   })) return;
-  await runSave(() => window.crew.deleteEntry(form.id), 'Entry deleted.');
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  form.lastRow = JSON.stringify(rowFor(form));
+  await sendUnsent();
+  await runSave(async () => {
+    if (unsent[form.id]) throw new Error('Could not reach the server. Check your connection and try again.');
+    await window.crew.deleteEntry(form.id);
+    state.data.entries = state.data.entries.filter((e) => e.id !== form.id);
+  }, 'Entry deleted.');
 }
 
 async function runSave(action, message) {
@@ -333,12 +561,17 @@ function setFormField(field, value) {
   f[field] = value;
   if (field === 'fromStn' || field === 'toStn') {
     f.kms = kmsBetween(f.fromStn, f.toStn) ?? f.kms;
-    if (!f.id && value) {
-      window.crew.position().then((here) => { if (here) f[field === 'fromStn' ? 'fromLocation' : 'toLocation'] = here; });
+    if (f.startedHere && value && isKnownStation(value, {})) {
+      window.crew.position().then((here) => {
+        if (!here) return;
+        f[field === 'fromStn' ? 'fromLocation' : 'toLocation'] = here;
+        if (f === state.form && f.id) scheduleSave();
+      });
     }
   }
+  if (field === 'arrTime') f.arrivalOffered = false;
   if (field === 'depTime' || field === 'arrTime') {
-    f.dayNight = shiftFor(f.depTime, f.arrTime) ?? f.dayNight;
+    f.dayNight = shiftFor(f.depTime, f.arrivalOffered ? '' : f.arrTime) ?? f.dayNight;
   }
 }
 
@@ -435,10 +668,20 @@ function dashboard() {
   const mine = sortedByDue(crew.filter((c) => c.cliName === state.selectedCli));
 
   const pending = isAdmin() ? (state.adminUsers ?? []).filter((u) => u.status === 'PENDING').length : 0;
+  const waiting = CrewLib.arrivalPending(entries, state.user.email);
   return [
     el('div', { class: 'toolbar' },
       el('button', { class: 'reports-button', type: 'button', onclick: () => go('reports') }, 'REPORTS')),
     pending ? el('button', { class: 'banner banner-button', type: 'button', onclick: () => go('admin') }, `${pending} new ${pending === 1 ? 'user is' : 'users are'} waiting for approval. Tap to review.`) : null,
+    waiting.length ? el('section', { id: 'arrival-pending' },
+      el('h2', {}, `Arrival Pending (${waiting.length})`),
+      el('div', { class: 'cards' }, waiting.map((e) => el('button', { class: 'card pending-card', type: 'button', onclick: () => editEntry(e) },
+        el('h3', { class: gradeClass(e.grade) }, e.nameOfMotorman || '—'),
+        lv('Date', display(e.date)),
+        lv('Train', e.trainNo),
+        lv('Route', `${e.fromStn} → ${e.toStn}`),
+        lv('Dep', normaliseTime(e.depTime)),
+        el('span', { class: 'lv pending-tag' }, 'Arrival pending. Tap to enter.'))))) : null,
     el('h2', {}, "Today's Summary"),
     el('div', { class: 'kpis' },
       kpi(today.length, 'Trips Today'),
@@ -600,15 +843,29 @@ function textField(label, name, opts = {}) {
         again?.focus();
         again?.setSelectionRange(again.value.length, again.value.length);
       }
+      scheduleSave();
     },
   }), opts.wide);
+}
+
+// Type to search. Choosing or fully typing a station uses the list's spelling, which also fills in KMS.
+function stationField(label, name) {
+  return textField(label, name, {
+    list: 'station-list',
+    after: (typed) => {
+      const exact = state.data.stations.find((s) => s.toLowerCase() === typed.trim().toLowerCase());
+      if (!exact) return false;
+      setFormField(name, exact);
+      return true;
+    },
+  });
 }
 
 function selectField(label, name, options) {
   const current = state.form[name] ?? '';
   const all = current && !options.includes(current) ? [current, ...options] : options;
   return field(label, el('select', {
-    onchange: (e) => { setFormField(name, e.target.value); render(); },
+    onchange: (e) => { setFormField(name, e.target.value); render(); scheduleSave(); },
   }, el('option', { value: '' }, ''), all.map((o) => el('option', { value: o, selected: o === current }, o))));
 }
 
@@ -619,6 +876,8 @@ function timeField(label, name) {
       e.target.value = formatTime(e.target.value);
       setFormField(name, e.target.value);
       document.querySelectorAll('.shift button').forEach((b) => b.classList.toggle('active', b.textContent === state.form.dayNight));
+      if (name === 'arrTime') document.getElementById('save-arrival')?.remove();
+      scheduleSave();
     },
   }));
 }
@@ -632,18 +891,22 @@ function entryView() {
   const fromCrew = (name) => ({ locked: Boolean(crew) && String(f[name] ?? '').trim() !== '' });
   const picker = el('input', {
     type: 'date', title: 'Pick a date', 'aria-label': 'Pick a date', value: parseDisplay(f.dateText) ?? '',
-    onchange: (e) => { if (e.target.value) { f.dateText = display(e.target.value); render(); } },
+    onchange: (e) => { if (e.target.value) { f.dateText = display(e.target.value); render(); scheduleSave(); } },
   });
+  const status = readOnly ? null : el('div', { id: 'save-status', class: 'save-status', role: 'status' });
+  queueMicrotask(paintSaveStatus);
   return [
-    el('h2', {}, readOnly ? 'View Entry' : f.id ? 'Edit Entry' : 'New Duty Entry'),
+    el('h2', { id: 'entry-title' }, readOnly ? 'View Entry' : f.id ? 'Edit Entry' : 'New Duty Entry'),
     readOnly ? el('div', { class: 'banner' }, `Entered by ${f.cliName || f.userMail}. Only they or an admin can change or delete it.`) : null,
     !readOnly && someoneElses ? el('div', { class: 'banner' }, `Entered by ${f.cliName || f.userMail}. You are changing it as admin.`) : null,
+    status,
     el('datalist', { id: 'crew-list' }, state.data.crew.map((c) => el('option', { value: c.name }))),
     el('datalist', { id: 'train-list' }, state.data.trains.map((t) => el('option', { value: t.trainNo }))),
     el('datalist', { id: 'tm-list' }, state.data.trainManagers.map((n) => el('option', { value: n }))),
-    el('form', { class: 'entry', onsubmit: (e) => { e.preventDefault(); submitForm(); } },
+    el('datalist', { id: 'station-list' }, state.data.stations.map((s) => el('option', { value: s }))),
+    el('form', { class: 'entry', onsubmit: (e) => { e.preventDefault(); flushSave(); }, onfocusout: () => { if (saveTimer) flushSave(); } },
       field('Date', el('div', { class: 'date-row' },
-        el('input', { type: 'text', value: f.dateText, placeholder: 'DD-MMM-YYYY', oninput: (e) => { f.dateText = e.target.value; } }),
+        el('input', { type: 'text', value: f.dateText, placeholder: 'DD-MMM-YYYY', 'data-field': 'dateText', oninput: (e) => { f.dateText = e.target.value; scheduleSave(); } }),
         picker)),
       el('h2', {}, 'Crew Information'),
       textField('Name of Motorman *', 'nameOfMotorman', { list: 'crew-list', upper: true, after: fillFromCrew, wide: true }),
@@ -656,27 +919,30 @@ function entryView() {
       el('h2', {}, 'Route & Timing'),
       selectField('Subject', 'sub', state.data.subjects),
       selectField('Line', 'line', state.data.lines),
-      selectField('From Stn', 'fromStn', state.data.stations),
-      selectField('To Stn', 'toStn', state.data.stations),
+      stationField('From Stn', 'fromStn'),
+      stationField('To Stn', 'toStn'),
       timeField('Dep Time', 'depTime'), timeField('Arr Time', 'arrTime'),
+      f.arrivalOffered && !readOnly ? el('div', { class: 'wide arrival-offer', id: 'save-arrival' },
+        el('p', {}, 'Arr Time is set to the time now and is not saved yet. Change it if needed, or tap Save Arrival.'),
+        el('button', { type: 'button', onclick: saveArrival }, 'Save Arrival')) : null,
       textField('KMS', 'kms'),
       field('Shift', el('div', { class: 'shift' }, ['DAY', 'NIGHT'].map((s) => el('button', {
         type: 'button', class: f.dayNight === s ? 'active' : '',
-        onclick: () => { f.dayNight = s; render(); },
+        onclick: () => { f.dayNight = s; render(); scheduleSave(); },
       }, s)))),
       el('h2', {}, 'Inspection'),
       textField('VISION', 'spec', fromCrew('spec')), textField('LCD (Date)', 'lcd', fromCrew('lcd')),
       textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true }),
       el('h2', {}, 'Deficiency Report'),
       el('label', { class: 'check wide' },
-        el('input', { type: 'checkbox', checked: f.deficiencyFound, onchange: (e) => { f.deficiencyFound = e.target.checked; render(); } }),
+        el('input', { type: 'checkbox', checked: f.deficiencyFound, onchange: (e) => { f.deficiencyFound = e.target.checked; render(); scheduleSave(); } }),
         'Deficiency Found?'),
       f.deficiencyFound ? textField('Deficiency Details', 'remarkDeficiency', { wide: true }) : null,
       textField('Description / Remarks', 'description', { wide: true }),
       el('div', { class: 'actions' },
-        readOnly ? null : el('button', { type: 'submit', disabled: state.loading }, f.id ? 'Save Changes' : 'Submit Entry'),
-        f.id && !readOnly ? el('button', { type: 'button', class: 'danger', disabled: state.loading, onclick: deleteForm }, 'Delete Entry') : null,
-        f.id ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go(state.formReturn ?? 'dashboard'); } }, readOnly ? 'Back' : 'Cancel') : null)),
+        readOnly ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go(state.formReturn ?? 'dashboard'); } }, 'Back')
+          : el('button', { type: 'button', onclick: finishForm }, 'Done'),
+        readOnly ? null : el('button', { id: 'entry-delete', type: 'button', class: 'danger', hidden: !f.id, onclick: deleteForm }, 'Delete Entry'))),
   ];
 }
 
@@ -1066,6 +1332,9 @@ function render() {
     root.replaceChildren(state.authView === 'register' ? registerView() : loginView());
     return;
   }
+  // A sync can finish while someone is typing, and redrawing mustn't take the cursor out of the box.
+  const typingIn = document.activeElement?.dataset?.field;
+  const caret = typingIn ? document.activeElement.selectionStart : null;
   if (state.user.mustChange) {
     root.replaceChildren(changePasswordView(true));
     return;
@@ -1090,6 +1359,18 @@ function render() {
         el('button', {
           class: 'ghost',
           onclick: async () => {
+            flushSave();
+            const waiting = Object.keys(unsent).length;
+            if (waiting && !await confirmBox({
+              title: 'Sign out and lose unsaved changes?',
+              text: `${waiting} ${waiting === 1 ? 'entry has' : 'entries have'} not reached the sheet yet, so signing out now loses them. Stay signed in until the connection returns to keep them.`,
+              action: 'Sign out',
+              danger: true,
+            })) return;
+            clearTimeout(retryTimer);
+            unsent = {};
+            keepUnsent();
+            unsentOwner = '';
             await window.crew.signOut();
             state.user = null;
             state.data = null;
@@ -1109,12 +1390,19 @@ function render() {
       state.error ? el('div', { class: 'banner error' }, state.error) : null,
       state.notice ? el('div', { class: 'banner' }, state.notice) : null,
       state.data?.offlineAt
-        ? el('div', { class: 'banner error' }, `Offline. Showing data from ${new Date(state.data.offlineAt).toLocaleString('en-IN')}. Saving needs a connection.`)
+        ? el('div', { class: 'banner error' }, `Offline. Showing data from ${new Date(state.data.offlineAt).toLocaleString('en-IN')}. Entries stay on this device until the connection returns.`)
         : null,
       state.data && !state.loading && !state.data.offlineAt && state.view === 'dashboard'
         ? el('div', { class: 'banner' }, `Synced: ${state.data.crew.length} crew, ${state.data.trains.length} trains, ${state.data.entries.length} entries`)
         : null,
       body));
+  if (typingIn) {
+    const again = document.querySelector(`input[data-field="${typingIn}"]`);
+    if (again) {
+      again.focus();
+      again.setSelectionRange(caret, caret);
+    }
+  }
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {

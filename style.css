@@ -124,3 +124,11 @@ nav { flex: 1 1 320px; min-width: 0; justify-content: flex-end; }
 
 .activity-message { white-space: pre-wrap; font-size: 1.05rem; line-height: 1.5; margin: 0 0 12px; padding: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; font-family: inherit; }
 input.locked { background: var(--bg); color: var(--muted); cursor: not-allowed; }
+button[hidden] { display: none; }
+.save-status { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 600; background: var(--accent-soft); }
+.save-status.hold { background: #fff3cd; color: #5c4400; }
+#arrival-pending { margin-bottom: 14px; }
+.pending-card { border-color: #d39e00; background: #fffbea; }
+.pending-tag { color: #8a5a00; font-weight: 700; }
+.arrival-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 12px; border-radius: 8px; background: #fff3cd; color: #5c4400; }
+.arrival-offer p { margin: 0; flex: 1 1 220px; }

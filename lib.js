@@ -319,6 +319,16 @@ function latestActivity(entries, email) {
     .sort((a, b) => b.sortKey - a.sortKey)[0] ?? null;
 }
 
+// The signed-in user's own entries still waiting for an arrival time, newest first.
+// Older rows with no times at all aren't waiting for anything, so they need a Dep Time to count.
+function arrivalPending(entries, email) {
+  const wanted = String(email ?? '').trim().toLowerCase();
+  return entries
+    .filter((e) => String(e.depTime ?? '').trim() && !String(e.arrTime ?? '').trim()
+      && String(e.userMail ?? '').trim().toLowerCase() === wanted)
+    .sort((a, b) => b.sortKey - a.sortKey);
+}
+
 // LCD as DD-MMM-YYYY. Anything that isn't a date is shown as it was typed.
 function lcdShown(raw) {
   const iso = toIsoDate(raw);
@@ -350,7 +360,7 @@ function activityMessage(e) {
 }
 
 return {
-  latestActivity, activityMessage, filterEntries,
+  latestActivity, activityMessage, filterEntries, arrivalPending,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };
