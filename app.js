@@ -834,7 +834,7 @@ function cliPicker(label, id, choices, current, placeholder, onPick) {
 }
 
 function trainsView() {
-  const list = el('div', { class: 'cards' });
+  const list = el('div', { class: 'cards bold-cards' });
   const count = el('div', { class: 'count' });
   renderList = () => {
     const q = state.trainQuery.trim().toLowerCase();
@@ -859,7 +859,7 @@ function trainsView() {
 }
 
 function crewView() {
-  const list = el('div', { class: 'cards' });
+  const list = el('div', { class: 'cards bold-cards' });
   const count = el('div', { class: 'count' });
   renderList = () => {
     const q = state.crewQuery.trim().toLowerCase();

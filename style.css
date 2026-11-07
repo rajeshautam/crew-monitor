@@ -208,3 +208,6 @@ main > h2:first-child { margin-top: 6px; }
 .date-row input[type=date]::-webkit-datetime-edit { display: none; }
 .date-row input[type=date]::-webkit-calendar-picker-indicator { margin: 0 auto; }
 .actions button.danger { flex: none; background: var(--surface); color: var(--danger); border: 1px solid #efc4c0; }
+
+/* Train Search and Crew Search cards: everything bold */
+.bold-cards .card, .bold-cards .lv, .bold-cards .lv b, .bold-cards .mode-details, .bold-cards button.link { font-weight: 700; }
