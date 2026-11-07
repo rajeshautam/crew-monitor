@@ -627,13 +627,9 @@ function setFormField(field, value) {
   }
 }
 
-// Latest counselling or footplating entry as dd/MM/yyyy, the format the sheet's LCD column uses.
+// The motorman's latest entry of any subject, leaving out the one being filled in.
 function lastContactDate(crew) {
-  const { counselling, footplating } = lastDates(crew);
-  const latest = counselling > footplating ? counselling : footplating;
-  if (!latest) return '';
-  const [y, m, d] = latest.split('-');
-  return `${d}/${m}/${y}`;
+  return CrewLib.latestEntryDate(entriesFor(crew), state.form?.id);
 }
 
 function crewFor(name) {
@@ -1024,7 +1020,8 @@ function entryView() {
           ontoggle: (e) => { state.crewDetailsOpen = e.target.open; },
         }, el('summary', {}, 'Duty and due details'), crewDetails(crew)) : null,
         textField('Grade', 'grade', fromCrew('grade')), textField('CMS-ID', 'cmsCode', fromCrew('cmsCode')),
-        textField('Nominated CLI', 'nameOfNominCli', { ...fromCrew('nameOfNominCli'), wide: true }), textField('Depot', 'depot', fromCrew('depot'))),
+        textField('Nominated CLI', 'nameOfNominCli', { ...fromCrew('nameOfNominCli'), wide: true }), textField('Depot', 'depot', fromCrew('depot')),
+        textField('VISION', 'spec', fromCrew('spec')), lcdField(fromCrew('lcd').locked)),
       formSection('Train Details',
         textField('Train No *', 'trainNo', { list: 'train-list', upper: true, after: fillFromTrain }),
         textField('Unit No', 'unitNo')),
@@ -1043,7 +1040,6 @@ function entryView() {
           onclick: () => { f.dayNight = s; render(); scheduleSave(); },
         }, s))))),
       formSection('Inspection',
-        textField('VISION', 'spec', fromCrew('spec')), lcdField(fromCrew('lcd').locked),
         textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true })),
       formSection('Deficiency Report',
         el('label', { class: 'check wide' },

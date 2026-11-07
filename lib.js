@@ -352,6 +352,12 @@ function lcdShown(raw) {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? displayDate(iso) : iso;
 }
 
+// The latest entry date of any subject as DD/MM/YYYY, the format the sheet's LCD column uses.
+function latestEntryDate(entries, exceptId) {
+  const dates = entries.filter((e) => e.id !== exceptId && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e) => e.date);
+  return dates.length ? toSheetDate(dates.sort().at(-1)) : '';
+}
+
 // The admin's All Entries list, newest first. A date filter leaves out rows with no usable date.
 function filterEntries(entries, { from = '', to = '', cli = '', text = '' } = {}) {
   const wantedCli = cli.trim().toLowerCase();
@@ -377,7 +383,7 @@ function activityMessage(e) {
 }
 
 return {
-  latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli,
+  latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli, lcdShown, latestEntryDate,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };
