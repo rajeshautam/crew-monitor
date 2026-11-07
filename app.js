@@ -98,10 +98,26 @@ function normaliseTime(time) {
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(time || '').trim();
 }
 
+// 24-hour HH:MM as it's typed: a digit that can't be part of a time is ignored, and 9 becomes 09.
+// Must stay the same as typedTime in Models.kt.
 function formatTime(typed) {
-  const digits = typed.replace(/\D/g, '').slice(0, 4);
+  let digits = '';
+  for (const digit of String(typed).replace(/\D/g, '')) {
+    if (digits.length === 0) digits = digit > '2' ? `0${digit}` : digit;
+    else if (digits.length === 1 && digits[0] === '2' && digit > '3') continue;
+    else if (digits.length === 2 && digit > '5') continue;
+    else if (digits.length < 4) digits += digit;
+  }
   return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
 }
+
+// DD/MM/YYYY as it's typed, the format the sheet's LCD column uses.
+function formatLcd(typed) {
+  const digits = String(typed).replace(/\D/g, '').slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join('/');
+}
+
+const validLcd = (text) => /^\d{2}\/\d{2}\/\d{4}$/.test(text) && /^\d{4}-\d{2}-\d{2}$/.test(CrewLib.toIsoDate(text));
 
 const validTime = (time) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 
@@ -312,6 +328,7 @@ function editEntry(entry, returnTo = 'dashboard') {
     arrivalOffered: waiting,
     openedFrom: entry.fromStn,
     openedTo: entry.toStn,
+    openedLcd: entry.lcd,
   };
   state.form.lastRow = JSON.stringify(rowFor(state.form));
   state.view = 'entry';
@@ -375,8 +392,10 @@ function isKnownStation(value, form) {
 function holdReason(form) {
   if (!String(form.nameOfMotorman ?? '').trim() || !String(form.trainNo ?? '').trim()) return 'Saving starts once Motorman and Train No are filled.';
   if (!parseDisplay(form.dateText)) return 'Date must look like 05-Nov-2026.';
-  if (form.depTime && !validTime(form.depTime)) return 'Dep Time must be HH:MM, for example 09:30.';
-  if (form.arrTime && !validTime(form.arrTime)) return 'Arr Time must be HH:MM, for example 09:30.';
+  if (form.depTime && !validTime(form.depTime)) return 'Dep Time must be 24-hour HH:MM, from 00:00 to 23:59.';
+  if (form.arrTime && !validTime(form.arrTime)) return 'Arr Time must be 24-hour HH:MM, from 00:00 to 23:59.';
+  // An older row can hold other text, and that needn't be fixed to change something else.
+  if (form.lcd && form.lcd !== form.openedLcd && !validLcd(form.lcd)) return 'LCD must be a real date, DD/MM/YYYY.';
   if (!isKnownStation(form.fromStn, form)) return 'Pick From Stn from the list.';
   if (!isKnownStation(form.toStn, form)) return 'Pick To Stn from the list.';
   return '';
@@ -927,16 +946,49 @@ function formSection(title, ...children) {
 }
 
 function timeField(label, name) {
-  return field(label, el('input', {
-    type: 'text', value: state.form[name] ?? '', placeholder: 'HH:MM', inputMode: 'numeric', 'data-field': name,
+  const hint = el('small', { class: 'field-hint', hidden: true }, '24-hour HH:MM, from 00:00 to 23:59');
+  const flag = (input, show) => {
+    input.classList.toggle('invalid', show);
+    hint.hidden = !show;
+  };
+  return field(label, el('div', {}, el('input', {
+    type: 'text', value: state.form[name] ?? '', placeholder: 'HH:MM', inputMode: 'numeric', 'data-field': name, maxLength: 5,
+    onblur: (e) => flag(e.target, Boolean(e.target.value) && !validTime(e.target.value)),
     oninput: (e) => {
       e.target.value = formatTime(e.target.value);
+      if (!e.target.value || validTime(e.target.value)) flag(e.target, false);
       setFormField(name, e.target.value);
       document.querySelectorAll('.shift button').forEach((b) => b.classList.toggle('active', b.textContent === state.form.dayNight));
       if (name === 'arrTime') document.getElementById('save-arrival')?.remove();
       scheduleSave();
     },
-  }));
+  }), hint));
+}
+
+// Locked when it came from the crew data. Otherwise type it or pick it.
+function lcdField(locked) {
+  const f = state.form;
+  if (locked) return textField('LCD (Date)', 'lcd', { locked: true });
+  const iso = CrewLib.toIsoDate(f.lcd);
+  return field('LCD (Date)', el('div', { class: 'date-row' },
+    el('input', {
+      type: 'text', value: f.lcd ?? '', placeholder: 'DD/MM/YYYY', inputMode: 'numeric', 'data-field': 'lcd', maxLength: 10,
+      oninput: (e) => {
+        e.target.value = formatLcd(e.target.value);
+        setFormField('lcd', e.target.value);
+        scheduleSave();
+      },
+    }),
+    el('input', {
+      type: 'date', title: 'Pick the LCD date', 'aria-label': 'Pick the LCD date', 'data-picker': 'lcd',
+      value: /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '',
+      onchange: (e) => {
+        if (!e.target.value) return;
+        setFormField('lcd', CrewLib.toSheetDate(e.target.value));
+        render();
+        scheduleSave();
+      },
+    })));
 }
 
 function entryView() {
@@ -991,7 +1043,7 @@ function entryView() {
           onclick: () => { f.dayNight = s; render(); scheduleSave(); },
         }, s))))),
       formSection('Inspection',
-        textField('VISION', 'spec', fromCrew('spec')), textField('LCD (Date)', 'lcd', fromCrew('lcd')),
+        textField('VISION', 'spec', fromCrew('spec')), lcdField(fromCrew('lcd').locked),
         textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true })),
       formSection('Deficiency Report',
         el('label', { class: 'check wide' },

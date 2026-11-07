@@ -211,3 +211,9 @@ main > h2:first-child { margin-top: 6px; }
 
 /* Train Search and Crew Search cards: everything bold */
 .bold-cards .card, .bold-cards .lv, .bold-cards .lv b, .bold-cards .mode-details, .bold-cards button.link { font-weight: 700; }
+
+/* Field checks */
+input.invalid { border-color: var(--danger); outline-color: var(--danger); }
+.field-hint { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 600; color: var(--danger); }
+.field-hint[hidden] { display: none; }
+.date-row input[type=text] { min-width: 0; }
