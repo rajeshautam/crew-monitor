@@ -472,11 +472,12 @@ function report() {
   ];
 }
 
-// Every entry, for an admin to find and open. Saving or deleting comes back here.
+// An admin finds and opens every entry here, and a CLI their own. Saving or deleting comes back here.
 function allEntriesView() {
-  if (!isAdmin()) return [el('p', {}, 'Administrator access required.')];
+  const admin = isAdmin();
   state.allFilters ??= { from: '', to: '', cli: '', text: '' };
   const filters = state.allFilters;
+  if (!admin) filters.cli = state.user.email; // the server also refuses changes to anyone else's entry
   const limit = 100;
   const list = el('div', { class: 'cards' });
   const count = el('div', { class: 'count' });
@@ -490,7 +491,7 @@ function allEntriesView() {
     },
     el('h3', { class: gradeClass(entry.grade) }, entry.nameOfMotorman || '—', entry.deficiencyFound ? el('span', { class: 'flag' }, '  !') : null),
     lv('Date', display(entry.date)),
-    lv('CLI', entry.cliName || entry.userMail),
+    admin ? lv('CLI', entry.cliName || entry.userMail) : null,
     lv('Subject', entry.sub),
     lv('Train', entry.trainNo),
     lv('Route', `${entry.fromStn} → ${entry.toStn}`))));
@@ -499,15 +500,15 @@ function allEntriesView() {
   const dateInput = (label, key) => el('label', {}, el('span', {}, label),
     el('input', { type: 'date', value: filters[key], onchange: (e) => { filters[key] = e.target.value; renderList(); } }));
   return [
-    el('h2', {}, 'All Entries'),
+    el('h2', {}, admin ? 'All Entries' : 'My Entries'),
     el('div', { class: 'report-filters' },
       dateInput('From date', 'from'),
       dateInput('To date', 'to'),
-      el('label', {}, el('span', {}, 'CLI'),
+      admin ? el('label', {}, el('span', {}, 'CLI'),
         el('select', { onchange: (e) => { filters.cli = e.target.value; renderList(); } },
           el('option', { value: '' }, 'All CLIs'),
-          reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === filters.cli }, `${name} (${mail})`))))),
-    searchBox(filters.text, 'Motorman, train, unit, subject or CLI', (v) => { filters.text = v; }),
+          reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === filters.cli }, `${name} (${mail})`)))) : null),
+    searchBox(filters.text, admin ? 'Motorman, train, unit, subject or CLI' : 'Motorman, train, unit or subject', (v) => { filters.text = v; }),
     el('div', { class: 'toolbar' },
       el('button', { type: 'button', class: 'ghost', onclick: () => { state.allFilters = null; render(); } }, 'Clear filters')),
     count, list,
@@ -1058,7 +1059,7 @@ function render() {
         el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`)),
       el('nav', {},
         tab('dashboard', 'Dashboard'), tab('trains', 'Trains'), tab('crew', 'Crew'), tab('entry', '+ New Entry'), tab('message', 'Message'),
-        isAdmin() ? tab('allEntries', 'All Entries') : null,
+        tab('allEntries', isAdmin() ? 'All Entries' : 'My Entries'),
         isAdmin() ? tab('admin', 'Admin') : null,
         state.installPrompt ? el('button', { class: 'ghost', onclick: installApp }, 'Install app') : null,
         tab('password', 'Password'),
