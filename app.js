@@ -42,6 +42,34 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
+const ICONS = {
+  home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+  train: 'M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
+  add: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  crew: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  menu: 'M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z',
+  sync: 'M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z',
+  message: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+  list: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
+  admin: 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z',
+  logout: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+  report: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
+  download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
+};
+
+function icon(name) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
 function lv(label, value) {
   return el('span', { class: 'lv' }, el('b', {}, `${label}:`), String(value || '—'));
 }
@@ -104,12 +132,11 @@ function lastDates(crew) {
   return lastDatesCache.get(crew);
 }
 
-/** Later of last footplating or counselling, plus 7 days for grade C, 15 for B and 30 for A. */
+/** The nominated CLI's latest footplating or counselling, plus 7 days for grade C, 15 for B and 30 for A. */
 function crewDue(crew) {
   const days = { C: 7, B: 15, A: 30 }[crew.grade.trim().toUpperCase().charAt(0)];
   if (!days) return { isDue: false, dueDate: '' };
-  const { counselling, footplating } = lastDates(crew);
-  const last = counselling > footplating ? counselling : footplating;
+  const last = lastDates(crew).nominated;
   if (!last) return { isDue: true, dueDate: '' };
   const d = new Date(`${last}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -129,7 +156,7 @@ function sortedByDue(crew) {
 
 function dueLine(crew) {
   const due = crewDue(crew);
-  const text = due.dueDate ? display(due.dueDate) : (due.isDue ? 'No footplating or counselling yet' : '');
+  const text = due.dueDate ? display(due.dueDate) : (due.isDue ? 'None yet by nominated CLI' : '');
   const line = lv(due.isDue ? 'Due' : 'Next due', text);
   if (due.isDue) line.classList.add('due');
   return line;
@@ -145,16 +172,21 @@ function tmLine(name, phone) {
     el('button', { type: 'button', class: 'link tm-name', onclick: () => window.crew.callPhone(phone) }, `${name} · ${phone}`));
 }
 
+// The last dates show whoever did it. The due date only counts the nominated CLI's, kept apart in `nominated`.
 function computeLastDates(crew) {
   let counselling = '';
   let footplating = '';
+  let nominated = '';
   for (const e of entriesFor(crew)) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !CrewLib.doneByNominatedCli(e, crew, state.data.cliNames)) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
     const subject = e.sub.toUpperCase();
-    if (subject.includes('COUNSELLING') && e.date > counselling) counselling = e.date;
-    if (subject.includes('FOOTPLATING') && e.date > footplating) footplating = e.date;
+    const isCounselling = subject.includes('COUNSELLING');
+    const isFootplating = subject.includes('FOOTPLATING');
+    if (isCounselling && e.date > counselling) counselling = e.date;
+    if (isFootplating && e.date > footplating) footplating = e.date;
+    if ((isCounselling || isFootplating) && e.date > nominated && CrewLib.doneByNominatedCli(e, crew, state.data.cliNames)) nominated = e.date;
   }
-  return { counselling, footplating };
+  return { counselling, footplating, nominated };
 }
 
 function confirmBox({ title, text, action, danger }) {
@@ -231,6 +263,7 @@ function cliNames() {
 }
 
 function go(view) {
+  state.moreOpen = false;
   // Leaving saves what can be saved. A new entry that can't be saved yet waits here for the person to come back.
   const held = state.view === 'entry' && !flushSave() && state.form.id ? holdReason(state.form) : '';
   state.view = view;
@@ -614,15 +647,24 @@ function fillFromTrain(trainNo) {
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
+function cardHead(entry) {
+  return el('div', { class: 'card-head' },
+    el('h3', { class: gradeClass(entry.grade) }, entry.nameOfMotorman || '—', entry.deficiencyFound ? el('span', { class: 'flag' }, '  !') : null),
+    entry.dayNight ? el('span', { class: `pill ${entry.dayNight === 'NIGHT' ? 'night' : ''}` }, entry.dayNight) : null);
+}
+
+function routeLine(entry) {
+  return el('span', { class: 'route' }, `${entry.fromStn || '—'} → ${entry.toStn || '—'}`);
+}
+
 function entryCard(entry) {
   return el('button', { class: 'card', type: 'button', onclick: () => editEntry(entry) },
-    el('h3', { class: gradeClass(entry.grade) }, entry.nameOfMotorman || '—', entry.deficiencyFound ? el('span', { class: 'flag' }, '  !') : null),
+    cardHead(entry),
+    routeLine(entry),
     lv('Date', display(entry.date)),
     lv('Subject', entry.sub),
     lv('Train', entry.trainNo),
-    lv('Route', `${entry.fromStn} → ${entry.toStn}`),
-    lv('KMS', entry.kms),
-    lv('Shift', entry.dayNight));
+    lv('KMS', entry.kms));
 }
 
 // Grade C dark red, B blue, A black.
@@ -670,25 +712,25 @@ function dashboard() {
   const pending = isAdmin() ? (state.adminUsers ?? []).filter((u) => u.status === 'PENDING').length : 0;
   const waiting = CrewLib.arrivalPending(entries, state.user.email);
   return [
-    el('div', { class: 'toolbar' },
-      el('button', { class: 'reports-button', type: 'button', onclick: () => go('reports') }, 'REPORTS')),
     pending ? el('button', { class: 'banner banner-button', type: 'button', onclick: () => go('admin') }, `${pending} new ${pending === 1 ? 'user is' : 'users are'} waiting for approval. Tap to review.`) : null,
     waiting.length ? el('section', { id: 'arrival-pending' },
       el('h2', {}, `Arrival Pending (${waiting.length})`),
       el('div', { class: 'cards' }, waiting.map((e) => el('button', { class: 'card pending-card', type: 'button', onclick: () => editEntry(e) },
         el('h3', { class: gradeClass(e.grade) }, e.nameOfMotorman || '—'),
+        routeLine(e),
         lv('Date', display(e.date)),
         lv('Train', e.trainNo),
-        lv('Route', `${e.fromStn} → ${e.toStn}`),
         lv('Dep', normaliseTime(e.depTime)),
-        el('span', { class: 'lv pending-tag' }, 'Arrival pending. Tap to enter.'))))) : null,
-    el('h2', {}, "Today's Summary"),
-    el('div', { class: 'kpis' },
-      kpi(today.length, 'Trips Today'),
-      kpi(today.reduce((sum, e) => sum + (parseInt(e.kms, 10) || 0), 0), 'Total KMS'),
-      kpi(entries.filter((e) => e.deficiencyFound && e.date >= weekStart).length, 'Deficiencies (Week)'),
-      kpi(today.filter((e) => e.dayNight === 'DAY').length, 'Day Trips'),
-      kpi(today.filter((e) => e.dayNight === 'NIGHT').length, 'Night Trips')),
+        el('span', { class: 'pending-tag' }, 'Arrival pending. Tap to enter.'))))) : null,
+    el('section', { class: 'hero' },
+      el('h2', {}, "Today's Summary"),
+      el('div', { class: 'kpis' },
+        kpi(today.length, 'Trips Today'),
+        kpi(today.reduce((sum, e) => sum + (parseInt(e.kms, 10) || 0), 0), 'Total KMS'),
+        kpi(entries.filter((e) => e.deficiencyFound && e.date >= weekStart).length, 'Deficiencies (Week)'),
+        kpi(today.filter((e) => e.dayNight === 'DAY').length, 'Day Trips'),
+        kpi(today.filter((e) => e.dayNight === 'NIGHT').length, 'Night Trips'))),
+    el('button', { class: 'reports-button', type: 'button', onclick: () => go('reports') }, icon('report'), 'REPORTS'),
     el('h2', {}, 'Recent Entries'),
     el('div', { class: 'cards' }, recent.map(entryCard)),
     el('h2', {}, 'My Motorman'),
@@ -745,12 +787,12 @@ function allEntriesView() {
     list.replaceChildren(...matches.slice(0, limit).map((entry) => el('button', {
       class: 'card', type: 'button', onclick: () => editEntry(entry, 'allEntries'),
     },
-    el('h3', { class: gradeClass(entry.grade) }, entry.nameOfMotorman || '—', entry.deficiencyFound ? el('span', { class: 'flag' }, '  !') : null),
+    cardHead(entry),
+    routeLine(entry),
     lv('Date', display(entry.date)),
     admin ? lv('CLI', entry.cliName || entry.userMail) : null,
     lv('Subject', entry.sub),
-    lv('Train', entry.trainNo),
-    lv('Route', `${entry.fromStn} → ${entry.toStn}`))));
+    lv('Train', entry.trainNo))));
   };
   renderList();
   const dateInput = (label, key) => el('label', {}, el('span', {}, label),
@@ -861,12 +903,16 @@ function stationField(label, name) {
   });
 }
 
-function selectField(label, name, options) {
+function selectField(label, name, options, wide) {
   const current = state.form[name] ?? '';
   const all = current && !options.includes(current) ? [current, ...options] : options;
   return field(label, el('select', {
     onchange: (e) => { setFormField(name, e.target.value); render(); scheduleSave(); },
-  }, el('option', { value: '' }, ''), all.map((o) => el('option', { value: o, selected: o === current }, o))));
+  }, el('option', { value: '' }, ''), all.map((o) => el('option', { value: o, selected: o === current }, o))), wide);
+}
+
+function formSection(title, ...children) {
+  return el('section', { class: 'form-section' }, el('h2', {}, title), el('div', { class: 'form-grid' }, children));
 }
 
 function timeField(label, name) {
@@ -905,40 +951,43 @@ function entryView() {
     el('datalist', { id: 'tm-list' }, state.data.trainManagers.map((n) => el('option', { value: n }))),
     el('datalist', { id: 'station-list' }, state.data.stations.map((s) => el('option', { value: s }))),
     el('form', { class: 'entry', onsubmit: (e) => { e.preventDefault(); flushSave(); }, onfocusout: () => { if (saveTimer) flushSave(); } },
-      field('Date', el('div', { class: 'date-row' },
-        el('input', { type: 'text', value: f.dateText, placeholder: 'DD-MMM-YYYY', 'data-field': 'dateText', oninput: (e) => { f.dateText = e.target.value; scheduleSave(); } }),
-        picker)),
-      el('h2', {}, 'Crew Information'),
-      textField('Name of Motorman *', 'nameOfMotorman', { list: 'crew-list', upper: true, after: fillFromCrew, wide: true }),
-      crew ? el('div', { class: 'card wide' }, crewDetails(crew)) : null,
-      textField('Grade', 'grade', fromCrew('grade')), textField('CMS-ID', 'cmsCode', fromCrew('cmsCode')),
-      textField('Nominated CLI', 'nameOfNominCli', fromCrew('nameOfNominCli')), textField('Depot', 'depot', fromCrew('depot')),
-      el('h2', {}, 'Train Details'),
-      textField('Train No *', 'trainNo', { list: 'train-list', upper: true, after: fillFromTrain }),
-      textField('Unit No', 'unitNo'),
-      el('h2', {}, 'Route & Timing'),
-      selectField('Subject', 'sub', state.data.subjects),
-      selectField('Line', 'line', state.data.lines),
-      stationField('From Stn', 'fromStn'),
-      stationField('To Stn', 'toStn'),
-      timeField('Dep Time', 'depTime'), timeField('Arr Time', 'arrTime'),
-      f.arrivalOffered && !readOnly ? el('div', { class: 'wide arrival-offer', id: 'save-arrival' },
-        el('p', {}, 'Arr Time is set to the time now and is not saved yet. Change it if needed, or tap Save Arrival.'),
-        el('button', { type: 'button', onclick: saveArrival }, 'Save Arrival')) : null,
-      textField('KMS', 'kms'),
-      field('Shift', el('div', { class: 'shift' }, ['DAY', 'NIGHT'].map((s) => el('button', {
-        type: 'button', class: f.dayNight === s ? 'active' : '',
-        onclick: () => { f.dayNight = s; render(); scheduleSave(); },
-      }, s)))),
-      el('h2', {}, 'Inspection'),
-      textField('VISION', 'spec', fromCrew('spec')), textField('LCD (Date)', 'lcd', fromCrew('lcd')),
-      textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true }),
-      el('h2', {}, 'Deficiency Report'),
-      el('label', { class: 'check wide' },
-        el('input', { type: 'checkbox', checked: f.deficiencyFound, onchange: (e) => { f.deficiencyFound = e.target.checked; render(); scheduleSave(); } }),
-        'Deficiency Found?'),
-      f.deficiencyFound ? textField('Deficiency Details', 'remarkDeficiency', { wide: true }) : null,
-      textField('Description / Remarks', 'description', { wide: true }),
+      formSection('Crew Information',
+        field('Date', el('div', { class: 'date-row' },
+          el('input', { type: 'text', value: f.dateText, placeholder: 'DD-MMM-YYYY', 'data-field': 'dateText', oninput: (e) => { f.dateText = e.target.value; scheduleSave(); } }),
+          picker), true),
+        textField('Name of Motorman *', 'nameOfMotorman', { list: 'crew-list', upper: true, after: fillFromCrew, wide: true }),
+        crew ? el('details', {
+          class: 'crew-more', open: Boolean(state.crewDetailsOpen),
+          ontoggle: (e) => { state.crewDetailsOpen = e.target.open; },
+        }, el('summary', {}, 'Duty and due details'), crewDetails(crew)) : null,
+        textField('Grade', 'grade', fromCrew('grade')), textField('CMS-ID', 'cmsCode', fromCrew('cmsCode')),
+        textField('Nominated CLI', 'nameOfNominCli', { ...fromCrew('nameOfNominCli'), wide: true }), textField('Depot', 'depot', fromCrew('depot'))),
+      formSection('Train Details',
+        textField('Train No *', 'trainNo', { list: 'train-list', upper: true, after: fillFromTrain }),
+        textField('Unit No', 'unitNo')),
+      formSection('Route & Timing',
+        selectField('Subject', 'sub', state.data.subjects, true),
+        selectField('Line', 'line', state.data.lines, true),
+        stationField('From Stn', 'fromStn'),
+        stationField('To Stn', 'toStn'),
+        timeField('Dep Time', 'depTime'), timeField('Arr Time', 'arrTime'),
+        f.arrivalOffered && !readOnly ? el('div', { class: 'arrival-offer', id: 'save-arrival' },
+          el('p', {}, 'Arr Time is set to the time now and is not saved yet. Change it if needed, or tap Save Arrival.'),
+          el('button', { type: 'button', onclick: saveArrival }, 'Save Arrival')) : null,
+        textField('KMS', 'kms'),
+        field('Shift', el('div', { class: 'shift' }, ['DAY', 'NIGHT'].map((s) => el('button', {
+          type: 'button', class: f.dayNight === s ? 'active' : '',
+          onclick: () => { f.dayNight = s; render(); scheduleSave(); },
+        }, s))))),
+      formSection('Inspection',
+        textField('VISION', 'spec', fromCrew('spec')), textField('LCD (Date)', 'lcd', fromCrew('lcd')),
+        textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true })),
+      formSection('Deficiency Report',
+        el('label', { class: 'check wide' },
+          el('input', { type: 'checkbox', checked: f.deficiencyFound, onchange: (e) => { f.deficiencyFound = e.target.checked; render(); scheduleSave(); } }),
+          'Deficiency Found?'),
+        f.deficiencyFound ? textField('Deficiency Details', 'remarkDeficiency', { wide: true }) : null,
+        textField('Description / Remarks', 'description', { wide: true })),
       el('div', { class: 'actions' },
         readOnly ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go(state.formReturn ?? 'dashboard'); } }, 'Back')
           : el('button', { type: 'button', onclick: finishForm }, 'Done'),
@@ -1143,7 +1192,7 @@ function reportsView() {
           el('option', { value: '' }, 'All CLIs'),
           reportCliOptions().map(([mail, name]) => el('option', { value: mail, selected: mail === state.reportCli }, `${name} (${mail})`)))) : null),
     bad ? el('div', { class: 'banner error' }, 'The From date must not be after the To date.') : null,
-    el('div', { class: 'kpis' },
+    el('div', { class: 'kpis report-summary' },
       el('div', { class: 'kpi' }, el('strong', {}, String(summary.count)), 'Entries'),
       el('div', { class: 'kpi' }, el('strong', {}, String(summary.kms)), 'KMS'),
       el('div', { class: 'kpi' }, el('strong', {}, String(summary.deficiencies)), 'Deficiencies')),
@@ -1339,25 +1388,43 @@ function render() {
     root.replaceChildren(changePasswordView(true));
     return;
   }
-  const tab = (view, label) => el('button', { class: state.view === view ? 'active' : '', onclick: () => go(view) }, label);
+  const tab = (view, label, iconName, extraClass = '') => el('button', {
+    class: `${state.view === view ? 'active' : ''} ${extraClass}`.trim(), type: 'button', onclick: () => go(view),
+  }, icon(iconName), el('span', {}, label));
+  const usersWaiting = isAdmin() ? (state.adminUsers ?? []).filter((u) => u.status === 'PENDING').length : 0;
+  const moreViews = ['message', 'allEntries', 'admin', 'password', 'reports'];
+  document.body.classList.toggle('more-open', Boolean(state.moreOpen));
   const body = state.data ? {
     dashboard, report, trains: trainsView, crew: crewView, entry: entryView, reports: reportsView, message: messageView, allEntries: allEntriesView, admin: adminView, password: () => [passwordForm(false)],
   }[state.view]() : [el('p', { class: 'center' }, state.loading ? 'Loading from Google Sheets…' : 'No data loaded.')];
 
   root.replaceChildren(
     el('header', {},
-      el('div', {},
-        el('h1', {}, 'Crew Monitor'),
-        el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`)),
+      el('div', { class: 'brand' },
+        el('img', { src: 'icons/icon-192.png', alt: '' }),
+        el('div', { class: 'brand-text' },
+          el('h1', {}, 'Crew Monitor'),
+          el('div', { class: 'who' }, `Welcome, ${state.data?.cliName || state.user.name || state.user.email}${isAdmin() ? ' (Admin)' : ''}`))),
+      el('button', {
+        class: 'sync-button', type: 'button', disabled: state.loading, 'aria-label': 'Sync',
+        onclick: () => { state.notice = ''; refresh(); },
+      }, icon('sync'), el('span', {}, state.loading ? 'Syncing…' : 'Sync')),
       el('nav', {},
-        tab('dashboard', 'Dashboard'), tab('trains', 'Trains'), tab('crew', 'Crew'), tab('entry', '+ New Entry'), tab('message', 'Message'),
-        tab('allEntries', isAdmin() ? 'All Entries' : 'My Entries'),
-        isAdmin() ? tab('admin', 'Admin') : null,
-        state.installPrompt ? el('button', { class: 'ghost', onclick: installApp }, 'Install app') : null,
-        tab('password', 'Password'),
-        el('button', { class: 'ghost', disabled: state.loading, onclick: () => { state.notice = ''; refresh(); } }, state.loading ? 'Syncing…' : 'Sync'),
+        tab('dashboard', 'Dashboard', 'home'), tab('trains', 'Trains', 'train'), tab('entry', 'New Entry', 'add', 'tab-new'), tab('crew', 'Crew', 'crew'),
         el('button', {
-          class: 'ghost',
+          class: `more-button ${moreViews.includes(state.view) ? 'active' : ''}`.trim(), type: 'button', 'aria-label': 'More',
+          onclick: () => { state.moreOpen = !state.moreOpen; render(); },
+        }, icon('menu'), el('span', {}, 'More'), usersWaiting ? el('span', { class: 'tab-badge' }, String(usersWaiting)) : null),
+        el('button', { class: 'more-backdrop', type: 'button', 'aria-label': 'Close menu', onclick: () => { state.moreOpen = false; render(); } }),
+        el('div', { class: 'more' },
+        el('div', { class: 'more-title' }, 'More'),
+        tab('message', 'Message', 'message'),
+        tab('allEntries', isAdmin() ? 'All Entries' : 'My Entries', 'list'),
+        isAdmin() ? tab('admin', 'Admin', 'admin') : null,
+        state.installPrompt ? el('button', { type: 'button', onclick: installApp }, icon('download'), el('span', {}, 'Install app')) : null,
+        tab('password', 'Password', 'lock'),
+        el('button', {
+          type: 'button',
           onclick: async () => {
             flushSave();
             const waiting = Object.keys(unsent).length;
@@ -1382,9 +1449,10 @@ function render() {
             state.authView = 'login';
             state.authError = '';
             state.authMessage = '';
+            state.moreOpen = false;
             render();
           },
-        }, 'Sign out'))),
+        }, icon('logout'), el('span', {}, 'Sign out'))))),
     el('main', {},
       state.updateReady ? el('button', { class: 'banner banner-button', type: 'button', onclick: () => window.location.reload() }, 'A new version is ready. Tap to update.') : null,
       state.error ? el('div', { class: 'banner error' }, state.error) : null,
@@ -1393,7 +1461,7 @@ function render() {
         ? el('div', { class: 'banner error' }, `Offline. Showing data from ${new Date(state.data.offlineAt).toLocaleString('en-IN')}. Entries stay on this device until the connection returns.`)
         : null,
       state.data && !state.loading && !state.data.offlineAt && state.view === 'dashboard'
-        ? el('div', { class: 'banner' }, `Synced: ${state.data.crew.length} crew, ${state.data.trains.length} trains, ${state.data.entries.length} entries`)
+        ? el('div', { class: 'banner synced' }, `Synced: ${state.data.crew.length} crew, ${state.data.trains.length} trains, ${state.data.entries.length} entries`)
         : null,
       body));
   if (typingIn) {

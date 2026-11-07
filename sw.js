@@ -1,6 +1,6 @@
 // Keeps the app's own files on the device so it opens without a connection.
 // Change VERSION on every release so devices pick up the new files.
-const VERSION = 'crew-monitor-17';
+const VERSION = 'crew-monitor-18';
 const FILES = [
   './', './index.html', './style.css', './config.js', './lib.js', './api.js', './reports.js', './app.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',

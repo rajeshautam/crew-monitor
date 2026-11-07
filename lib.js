@@ -296,7 +296,7 @@ function nameKey(name) {
   return String(name ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').split('').sort().join('');
 }
 
-// Only these count towards Last Counselling and Last Footplating. Anyone else's entry stays a normal entry.
+// Only these count towards the due date. Last Counselling and Last Footplating show anyone's.
 // Goes by who was nominated when the entry was made, so a later change of CLI doesn't undo it.
 function doneByNominatedCli(entry, crew, cliNames = {}) {
   const nominated = nameKey(entry.nameOfNominCli || crew.cliName);
