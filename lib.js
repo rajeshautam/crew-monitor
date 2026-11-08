@@ -353,9 +353,11 @@ function lcdShown(raw) {
 }
 
 // The latest footplating or counselling entry as DD/MM/YYYY, the format the sheet's LCD column uses.
-function latestContactDate(entries, exceptId) {
+// before (ISO, optional) keeps only earlier entries, for filling in an older entry.
+function latestContactDate(entries, exceptId, before = '') {
   const dates = entries
-    .filter((e) => e.id !== exceptId && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && /FOOTPLATING|COUNSELLING/i.test(e.sub ?? ''))
+    .filter((e) => e.id !== exceptId && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && /FOOTPLATING|COUNSELLING/i.test(e.sub ?? '')
+      && (!before || e.date < before))
     .map((e) => e.date);
   return dates.length ? toSheetDate(dates.sort().at(-1)) : '';
 }

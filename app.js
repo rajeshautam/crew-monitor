@@ -331,6 +331,7 @@ function editEntry(entry, returnTo = 'dashboard') {
     openedLcd: entry.lcd,
   };
   state.form.lastRow = JSON.stringify(rowFor(state.form));
+  fillBlanksFromCrew(state.form);
   state.view = 'entry';
   state.notice = '';
   render();
@@ -651,6 +652,17 @@ function fillFromCrew(name) {
     nameOfNominCli: crew.cliName, depot: crew.depot, spec: crew.vision, lcd: lastContactDate(crew),
   });
   return true;
+}
+
+// An entry saved with Depot, VISION or LCD blank gets them from the crew data when it's opened.
+// Only on entries this user may change. It saves with the next change, or on Done.
+function fillBlanksFromCrew(form) {
+  const crew = crewFor(form.nameOfMotorman);
+  if (!crew || !canChange(form)) return;
+  const blank = (name) => !String(form[name] ?? '').trim();
+  if (blank('depot')) form.depot = crew.depot;
+  if (blank('spec')) form.spec = crew.vision;
+  if (blank('lcd')) form.lcd = CrewLib.latestContactDate(entriesFor(crew), form.id, form.date);
 }
 
 function fillFromTrain(trainNo) {
