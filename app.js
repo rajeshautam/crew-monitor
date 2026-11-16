@@ -231,6 +231,14 @@ async function refresh() {
   state.loading = true;
   state.error = '';
   loadUnsent();
+  // Opening the app: show the last downloaded data straight away, and replace it when the server answers.
+  if (!state.data) {
+    const saved = await window.crew.savedData();
+    if (saved && !state.data) {
+      state.data = saved;
+      Object.values(unsent).forEach(showRow);
+    }
+  }
   render();
   try {
     state.data = await window.crew.load();
@@ -1526,6 +1534,9 @@ function render() {
       state.notice ? el('div', { class: 'banner' }, state.notice) : null,
       state.data?.offlineAt
         ? el('div', { class: 'banner error' }, `Offline. Showing data from ${new Date(state.data.offlineAt).toLocaleString('en-IN')}. Entries stay on this device until the connection returns.`)
+        : null,
+      state.data && state.loading && state.view === 'dashboard'
+        ? el('div', { class: 'banner' }, 'Updating data…')
         : null,
       state.data && !state.loading && !state.data.offlineAt && state.view === 'dashboard'
         ? el('div', { class: 'banner synced' }, `Synced: ${state.data.crew.length} crew, ${state.data.trains.length} trains, ${state.data.entries.length} entries`)

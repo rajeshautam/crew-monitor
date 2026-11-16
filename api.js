@@ -109,6 +109,17 @@ window.crew = (() => {
       await forgetLastData();
     },
 
+    // The last data this account downloaded, to show at once while a fresh copy loads. Null when there is none.
+    async savedData() {
+      const saved = await readLastData();
+      if (!saved || saved.raw?.user?.email !== session?.user?.email) return null;
+      try {
+        return { ...CrewLib.assemble(saved.raw), savedAt: saved.at };
+      } catch {
+        return null;
+      }
+    },
+
     async load() {
       try {
         const raw = await post('load');
