@@ -20,6 +20,7 @@ const CrewReports = (() => {
     ['Shift', (e) => e.dayNight],
     ['KMS', (e) => e.kms],
     ['TM Name', (e) => e.tmgrName],
+    ['Ambush Check', (e) => e.ambush],
     ['Deficiency', (e) => e.remarkDeficiency],
     ['Remarks', (e) => e.description],
   ];
@@ -164,7 +165,7 @@ const CrewReports = (() => {
       rows.push(rowXml(at++, cells));
     }
     const lastColumn = columnName(head.length - 1);
-    const widths = [6, 12, 20, 16, 24, 7, 11, 9, 12, 8, 8, 8, 7, 8, 7, 8, 8, 6, 20, 26, 26];
+    const widths = [6, 12, 20, 16, 24, 7, 11, 9, 12, 8, 8, 8, 7, 8, 7, 8, 8, 6, 20, 40, 26, 26];
     const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A${headerRow}:${lastColumn}${at - 1}"/></worksheet>`;

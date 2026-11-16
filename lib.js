@@ -207,7 +207,7 @@ function parseTrains(legs, motormen, trainManagers, bookings, now = new Date(), 
 function parseDropdowns(rows) {
   const headings = new Set(['SUBJECT', 'STN FROM-TO', 'LINE']);
   const column = (i) => [...new Set(rows.map((r) => cell(r, i)).filter((v) => v && !headings.has(v)))];
-  return { subjects: column(0), stations: column(1), lines: column(2) };
+  return { subjects: withAmbushSubjects(column(0)), stations: column(1), lines: column(2) };
 }
 
 function parseTrainManagers(rows) {
@@ -227,6 +227,77 @@ function parseDistances(rows) {
 
 function parseEmailMaps(rows) {
   return rows.slice(1).flatMap((r) => (cell(r, 1) ? [{ userMail: cell(r, 1), cliName: cell(r, 2) }] : []));
+}
+
+// ── Ambush checks ─────────────────────────────────────────────────────────────
+// Two kinds, each with its own tick list. Must stay the same as the lists in Models.kt.
+const AMBUSH_FP = 'AMBUSH CHECK-Foot Plating';
+const AMBUSH_INDIVIDUAL = 'AMBUSH CHECK-Individual';
+const AMBUSH_ITEMS = {
+  fp: [
+    'Calling Out Signals and next Halt', 'Surprise Safety Items Checks', 'Mobile On/Off in Bag', 'BA test Online',
+    'Red Signal at PF precautions - Leaving seat etc.', 'BFT/RBT check', 'Alertness online', 'PF entry speed',
+    'Sounding Hooter', 'PSR / TSR follow', 'Authorized Travelers in Cab - No.', 'Speed zone over bell',
+    'change of mode', 'stopping bell by TM',
+  ],
+  individual: [
+    'HQ Availability', 'Reaching Cab 5 min before', 'Random BA Test', 'R/Room Ambush', 'C/S Ambush', 'Speed Gun',
+    'Personal Mobile Calling', 'Onduty Right Time', 'Ambush from TM Cab',
+  ],
+};
+// The last Individual item has its own ticks.
+const AMBUSH_TM_CAB = 'Ambush from TM Cab';
+const AMBUSH_TM_CAB_PARTS = ['TSR', 'PSR', 'PF entry', 'Bell Ack', 'RBT'];
+
+// The sheet's single AMBUSH CHECK subject becomes the two kinds. Ones already listed stay where they are.
+function withAmbushSubjects(subjects) {
+  const out = [];
+  for (const s of subjects) {
+    if (s.trim().toUpperCase() === 'AMBUSH CHECK') out.push(AMBUSH_FP, AMBUSH_INDIVIDUAL);
+    else out.push(s);
+  }
+  return [...new Set(out)];
+}
+
+function ambushKind(sub) {
+  const s = String(sub ?? '').trim().toUpperCase();
+  if (s === AMBUSH_FP.toUpperCase()) return 'fp';
+  if (s === AMBUSH_INDIVIDUAL.toUpperCase()) return 'individual';
+  return '';
+}
+
+// Ticked items as readable text for the sheet, joined by " | ".
+// Foot Plating: "Item: YES" or "Item: NO (remark)". Individual: "Item", or "Ambush from TM Cab [TSR, RBT]".
+function formatAmbush(kind, checks) {
+  const clean = (t) => String(t ?? '').replace(/[|()[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (AMBUSH_ITEMS[kind] ?? []).filter((label) => checks[label]?.ticked).map((label) => {
+    const c = checks[label];
+    if (kind === 'fp') {
+      const answer = c.compliant === 'YES' || c.compliant === 'NO' ? c.compliant : '-';
+      return `${label}: ${answer}${answer === 'NO' && clean(c.remark) ? ` (${clean(c.remark)})` : ''}`;
+    }
+    const parts = label === AMBUSH_TM_CAB ? AMBUSH_TM_CAB_PARTS.filter((p) => (c.parts ?? []).includes(p)) : [];
+    return parts.length ? `${label} [${parts.join(', ')}]` : label;
+  }).join(' | ');
+}
+
+// The other way: { label: { ticked, compliant, remark, parts } } for the items in the text.
+function parseAmbush(kind, text) {
+  const checks = {};
+  const labels = [...(AMBUSH_ITEMS[kind] ?? [])].sort((a, b) => b.length - a.length);
+  for (const piece of String(text ?? '').split(' | ')) {
+    const label = labels.find((l) => piece.startsWith(l));
+    if (!label) continue;
+    const rest = piece.slice(label.length).trim();
+    if (kind === 'fp') {
+      const m = rest.match(/^:\s*(YES|NO|-)(?:\s*\((.*)\))?$/);
+      checks[label] = { ticked: true, compliant: m && m[1] !== '-' ? m[1] : '', remark: m?.[2] ?? '' };
+    } else {
+      const m = rest.match(/^\[(.*)\]$/);
+      checks[label] = { ticked: true, parts: m ? m[1].split(',').map((p) => p.trim()).filter(Boolean) : [] };
+    }
+  }
+  return checks;
 }
 
 // Column order matches the entry tab. location, fromLocation and toLocation are carried through
@@ -269,6 +340,7 @@ function parseEntry(row, rowIndex) {
     depot: cell(row, 26),
     fromLocation: cell(row, 27),
     toLocation: cell(row, 28),
+    ambush: cell(row, 29),
   };
 }
 
@@ -279,6 +351,7 @@ function entryToRow(e) {
     e.trainNo, e.unitNo ?? '', e.line ?? '', e.fromStn ?? '', e.depTime ?? '', e.toStn ?? '', e.arrTime ?? '',
     e.dayNight ?? '', e.kms ?? '', e.tmgrName ?? '', e.description ?? '', e.imageUri ?? '',
     e.remarkDeficiency ?? '', e.depot ?? '', e.fromLocation ?? '', e.toLocation ?? '',
+    ambushKind(e.sub) ? (e.ambush ?? '') : '',
   ];
 }
 
@@ -388,6 +461,7 @@ function activityMessage(e) {
 
 return {
   latestActivity, activityMessage, filterEntries, arrivalPending, doneByNominatedCli, lcdShown, latestContactDate,
+  AMBUSH_ITEMS, AMBUSH_TM_CAB, AMBUSH_TM_CAB_PARTS, ambushKind, formatAmbush, parseAmbush, withAmbushSubjects,
   assemble, parseCrew, parseTrains, parseTmContacts, parseTmData, tmChanges, chartDate, parseDropdowns, parseTrainManagers,
   parseDistances, parseEntry, entryToRow, toIsoDate, toSheetDate, normaliseTime, validateEntry, displayDate,
 };

@@ -123,6 +123,20 @@ button.pending-card:active { background: #ffedc4; }
 .shift button.active { background: var(--accent); color: #fff; }
 .check { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 40px; }
 .check input { width: 20px; height: 20px; min-height: 0; flex: none; }
+/* Ambush check tick list */
+.ambush-count { margin: -4px 0 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.ambush-list { display: grid; gap: 8px; }
+.ambush-item { border: 1px solid var(--border); border-radius: 12px; padding: 4px 12px; background: var(--surface); }
+.ambush-item.on { background: var(--accent-soft); border-color: var(--accent); }
+.ambush-item.not-ok { background: var(--danger-soft); border-color: var(--danger); }
+.ambush-item .check { font-weight: 500; min-height: 42px; }
+.ambush-answer { display: flex; align-items: center; gap: 10px; margin: 0 0 8px 30px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.ambush-answer .shift { flex: 0 0 150px; }
+.shift.yesno button.active.no { background: var(--danger); }
+.ambush-remark { display: block; width: calc(100% - 30px); margin: 0 0 10px 30px; }
+.ambush-parts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 10px 30px; }
+.ambush-parts label { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.ambush-parts input { width: 18px; height: 18px; min-height: 0; }
 .actions { position: sticky; bottom: 10px; z-index: 3; display: flex; gap: 10px; margin-top: 4px; }
 .actions button { min-height: 48px; box-shadow: var(--shadow); }
 .actions button:first-child { flex: 1; font-size: 15px; }

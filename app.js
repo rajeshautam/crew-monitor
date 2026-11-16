@@ -318,7 +318,7 @@ function newForm() {
     dateText: display(isoToday()), nameOfMotorman: '', grade: '', cmsCode: '', code: '', nameOfNominCli: '', depot: '',
     trainNo: '', unitNo: '', sub: '', line: '', fromStn: '', toStn: '', depTime: time, arrTime: '',
     kms: '', dayNight: shiftFor(time, '') ?? 'DAY', spec: '', lcd: '', tmgrName: '',
-    deficiencyFound: false, remarkDeficiency: '', description: '',
+    deficiencyFound: false, remarkDeficiency: '', description: '', ambush: '',
   };
 }
 
@@ -619,7 +619,10 @@ async function runSave(action, message) {
 
 function setFormField(field, value) {
   const f = state.form;
+  const before = f[field];
   f[field] = value;
+  // Each kind of ambush check has its own list, so the ticks don't carry over to another subject.
+  if (field === 'sub' && CrewLib.ambushKind(before) !== CrewLib.ambushKind(value)) f.ambush = '';
   if (field === 'fromStn' || field === 'toStn') {
     f.kms = kmsBetween(f.fromStn, f.toStn) ?? f.kms;
     if (f.startedHere && value && isKnownStation(value, {})) {
@@ -981,6 +984,58 @@ function timeField(label, name) {
   }), hint));
 }
 
+// The tick list for an ambush check. Foot Plating asks Compliant YES/NO, and a remark when NO.
+function ambushSection(readOnly) {
+  const f = state.form;
+  const kind = CrewLib.ambushKind(f.sub);
+  if (!kind) return null;
+  const items = CrewLib.AMBUSH_ITEMS[kind];
+  const checks = CrewLib.parseAmbush(kind, f.ambush);
+  const change = (label, patch, redraw = true) => {
+    const next = CrewLib.parseAmbush(kind, f.ambush);
+    next[label] = { ...(next[label] ?? {}), ...patch };
+    if (!next[label].ticked) delete next[label];
+    f.ambush = CrewLib.formatAmbush(kind, next);
+    if (redraw) render();
+    scheduleSave();
+  };
+  const ticked = items.filter((l) => checks[l]).length;
+  const noCount = items.filter((l) => checks[l]?.compliant === 'NO').length;
+  return formSection(kind === 'fp' ? 'Ambush Check — Foot Plating' : 'Ambush Check — Individual',
+    el('p', { class: 'ambush-count wide' }, `${ticked} of ${items.length} checked${noCount ? ` · ${noCount} not compliant` : ''}`),
+    el('div', { class: 'ambush-list wide' }, items.map((label, i) => {
+      const c = checks[label];
+      return el('div', { class: `ambush-item ${c ? 'on' : ''} ${c?.compliant === 'NO' ? 'not-ok' : ''}`.trim() },
+        el('label', { class: 'check' },
+          el('input', {
+            type: 'checkbox', checked: Boolean(c), disabled: readOnly,
+            onchange: (e) => change(label, e.target.checked ? { ticked: true } : { ticked: false }),
+          }),
+          el('span', {}, `${i + 1}. ${label}`)),
+        c && kind === 'fp' ? el('div', { class: 'ambush-answer' },
+          el('span', {}, 'Compliant'),
+          el('div', { class: 'shift yesno' }, ['YES', 'NO'].map((answer) => el('button', {
+            type: 'button', disabled: readOnly,
+            class: `${c.compliant === answer ? 'active' : ''} ${answer === 'NO' ? 'no' : ''}`.trim(),
+            onclick: () => change(label, { compliant: answer, remark: answer === 'NO' ? c.remark : '' }),
+          }, answer)))) : null,
+        c && kind === 'fp' && c.compliant === 'NO' ? el('input', {
+          type: 'text', class: 'ambush-remark', placeholder: 'Remark (what was not compliant)', value: c.remark ?? '',
+          readOnly, 'data-field': `ambush-remark-${i}`,
+          oninput: (e) => change(label, { remark: e.target.value }, false),
+        }) : null,
+        c && label === CrewLib.AMBUSH_TM_CAB ? el('div', { class: 'ambush-parts' }, CrewLib.AMBUSH_TM_CAB_PARTS.map((part) => el('label', {},
+          el('input', {
+            type: 'checkbox', disabled: readOnly, checked: (c.parts ?? []).includes(part),
+            onchange: (e) => {
+              const parts = new Set(c.parts ?? []);
+              if (e.target.checked) parts.add(part); else parts.delete(part);
+              change(label, { parts: [...parts] });
+            },
+          }), part))) : null);
+    })));
+}
+
 // Locked when it came from the crew data. Otherwise type it or pick it.
 function lcdField(locked) {
   const f = state.form;
@@ -1059,6 +1114,7 @@ function entryView() {
           type: 'button', class: f.dayNight === s ? 'active' : '',
           onclick: () => { f.dayNight = s; render(); scheduleSave(); },
         }, s))))),
+      ambushSection(readOnly),
       formSection('Inspection',
         textField('Train Manager Name', 'tmgrName', { list: 'tm-list', upper: true, wide: true })),
       formSection('Deficiency Report',
