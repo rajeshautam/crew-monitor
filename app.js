@@ -360,7 +360,7 @@ function summary(e) {
 // row waits in `unsent`, and is kept on this device, until the server has it, so no connection loses nothing.
 const UNSENT_KEY = 'crew-unsent';
 const SAVE_DELAY_MS = 800;
-const RETRY_MS = 15000;
+const RETRY_MS = 5000;
 let unsent = {};
 let unsentOwner = '';
 let saveTimer = null;
@@ -939,6 +939,14 @@ function textField(label, name, opts = {}) {
   }), opts.wide);
 }
 
+// Longer text. The box grows with what's typed, so a whole remark is always on screen.
+function noteField(label, name, readOnly) {
+  return field(label, el('textarea', {
+    class: 'note', rows: 3, value: state.form[name] ?? '', 'data-field': name, readOnly: Boolean(readOnly),
+    oninput: (e) => { setFormField(name, e.target.value); scheduleSave(); },
+  }), true);
+}
+
 // Type to search. Choosing or fully typing a station uses the list's spelling, which also fills in KMS.
 function stationField(label, name) {
   return textField(label, name, {
@@ -1019,8 +1027,8 @@ function ambushSection(readOnly) {
             class: `${c.compliant === answer ? 'active' : ''} ${answer === 'NO' ? 'no' : ''}`.trim(),
             onclick: () => change(label, { compliant: answer, remark: answer === 'NO' ? c.remark : '' }),
           }, answer)))) : null,
-        c && kind === 'fp' && c.compliant === 'NO' ? el('input', {
-          type: 'text', class: 'ambush-remark', placeholder: 'Remark (what was not compliant)', value: c.remark ?? '',
+        c && kind === 'fp' && c.compliant === 'NO' ? el('textarea', {
+          rows: 2, class: 'ambush-remark note', placeholder: 'Remark (what was not compliant)', value: c.remark ?? '',
           readOnly, 'data-field': `ambush-remark-${i}`,
           oninput: (e) => change(label, { remark: e.target.value }, false),
         }) : null,
@@ -1121,8 +1129,8 @@ function entryView() {
         el('label', { class: 'check wide' },
           el('input', { type: 'checkbox', checked: f.deficiencyFound, onchange: (e) => { f.deficiencyFound = e.target.checked; render(); scheduleSave(); } }),
           'Deficiency Found?'),
-        f.deficiencyFound ? textField('Deficiency Details', 'remarkDeficiency', { wide: true }) : null,
-        textField('Description / Remarks', 'description', { wide: true })),
+        f.deficiencyFound ? noteField('Deficiency Details', 'remarkDeficiency', readOnly) : null,
+        noteField('Description / Remarks', 'description', readOnly)),
       el('div', { class: 'actions' },
         readOnly ? el('button', { type: 'button', class: 'ghost', onclick: () => { state.form = null; go(state.formReturn ?? 'dashboard'); } }, 'Back')
           : el('button', { type: 'button', onclick: finishForm }, 'Done'),

@@ -135,7 +135,8 @@ window.crew = (() => {
     },
 
     // Adds the row the first time and replaces it after that, so it's safe to send again.
-    saveRow: (row) => post('saveEntry', { row }, 30000),
+    // Given up after 25 s and sent again, so one slow reply can't hold back the next saves.
+    saveRow: (row) => post('saveEntry', { row }, 25000),
     deleteEntry: (id) => post('deleteEntry', { id }),
 
     listUsers: () => post('listUsers').then((r) => r.users),
