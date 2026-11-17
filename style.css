@@ -218,6 +218,10 @@ main > .auth-card { max-width: 420px; box-shadow: var(--shadow); }
   .more button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 }
 
+/* Version, so anyone can tell which copy they have */
+.app-version { margin: 22px 0 6px; text-align: center; font-size: 12px; color: var(--muted); }
+.more-version { float: right; font-weight: 500; }
+
 /* Small fixes */
 main > h2:first-child { margin-top: 6px; }
 .date-row input[type=date]::-webkit-datetime-edit { display: none; }

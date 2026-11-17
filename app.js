@@ -1,4 +1,7 @@
 'use strict';
+// Shown on the login page, in More and at the foot of the dashboard. The same number as the Android app and
+// windows/package.json, so anyone can tell which copy they have. Change it with every release (and VERSION in sw.js).
+const APP_VERSION = '1.5.5';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const root = document.getElementById('app');
 
@@ -782,6 +785,7 @@ function dashboard() {
         lv('Code', c.code), gradeLine(c.grade), lv('Depot', c.depot), lv('Entries', entriesFor(c).length), dueLine(c),
         lv('Last Counselling', display(last.counselling)), lv('Last Footplating', display(last.footplating)));
     })),
+    el('p', { class: 'app-version' }, `Crew Monitor version ${APP_VERSION}`),
   ];
 }
 
@@ -1147,7 +1151,8 @@ function authPage(subtitle, ...content) {
         el('h1', {}, 'CREW MONITOR'),
         el('p', {}, subtitle)),
       ...content,
-      el('p', { class: 'auth-credit' }, 'CREW MONITOR — by Rajesh Gautam (AMIE) · © 2026')));
+      el('p', { class: 'auth-credit' }, 'CREW MONITOR — by Rajesh Gautam (AMIE) · © 2026'),
+      el('p', { class: 'auth-credit' }, `Version ${APP_VERSION}`)));
 }
 
 function authField(label, type, autocomplete, id, initial = '') {
@@ -1556,7 +1561,7 @@ function render() {
         }, icon('menu'), el('span', {}, 'More'), usersWaiting ? el('span', { class: 'tab-badge' }, String(usersWaiting)) : null),
         el('button', { class: 'more-backdrop', type: 'button', 'aria-label': 'Close menu', onclick: () => { state.moreOpen = false; render(); } }),
         el('div', { class: 'more' },
-        el('div', { class: 'more-title' }, 'More'),
+        el('div', { class: 'more-title' }, 'More', el('span', { class: 'more-version' }, `Version ${APP_VERSION}`)),
         tab('message', 'Message', 'message'),
         tab('allEntries', isAdmin() ? 'All Entries' : 'My Entries', 'list'),
         isAdmin() ? tab('admin', 'Admin', 'admin') : null,
